@@ -6,12 +6,46 @@ const STORAGE_KEYS = {
   machines: "clog_machines"
 };
 
+const META_KEY = "clog_meta";
+const CURRENT_SCHEMA_VERSION = 2;
+
 function safeParse(value, fallback) {
   if (!value) return fallback;
   try {
     return JSON.parse(value);
   } catch {
     return fallback;
+  }
+}
+
+function loadMeta() {
+  return safeParse(localStorage.getItem(META_KEY), { schemaVersion: 1 });
+}
+
+function saveMeta(meta) {
+  localStorage.setItem(META_KEY, JSON.stringify(meta || { schemaVersion: CURRENT_SCHEMA_VERSION }));
+}
+
+function migrateBeansV2() {
+  const beans = safeParse(localStorage.getItem(STORAGE_KEYS.beans), []);
+  const migrated = beans.map(b => ({
+    id: b.id,
+    name: b.name,
+    beanType: b.beanType || "unknown",
+    roastType: b.roastType || "",
+    openDate: b.openDate || "",
+    notes: b.notes || [b.roaster, b.roastDate && `Roasted ${b.roastDate}`, typeof b.initialWeight === "number" && `Initial ${b.initialWeight}g`].filter(Boolean).join(" | "),
+    photoDataUrl: b.photoDataUrl || ""
+  }));
+  localStorage.setItem(STORAGE_KEYS.beans, JSON.stringify(migrated));
+}
+
+export function migrateIfNeeded() {
+  const meta = loadMeta();
+  if ((meta.schemaVersion || 1) < CURRENT_SCHEMA_VERSION) {
+    migrateBeansV2();
+    meta.schemaVersion = CURRENT_SCHEMA_VERSION;
+    saveMeta(meta);
   }
 }
 

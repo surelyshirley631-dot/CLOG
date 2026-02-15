@@ -3,7 +3,7 @@ import { bindCafesUi } from "./cafes.js";
 import { bindBeansUi } from "./beans.js";
 import { bindGrindersUi } from "./grinders.js";
 import { bindMachinesUi } from "./machines.js";
-import { exportAll, importAll, resetAll } from "./storage.js";
+import { exportAll, importAll, resetAll, migrateIfNeeded } from "./storage.js";
 
 function setHeaderFor(targetId) {
   const title = document.getElementById("app-title");
@@ -163,6 +163,7 @@ function initSettings() {
 }
 
 function initApp() {
+  migrateIfNeeded();
   initNavigation();
   bindBeansUi();
   bindGrindersUi();
