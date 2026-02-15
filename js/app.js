@@ -3,11 +3,42 @@ import { bindCafesUi } from "./cafes.js";
 import { bindBeansUi } from "./beans.js";
 import { exportAll, importAll, resetAll } from "./storage.js";
 
+function setHeaderFor(targetId) {
+  const title = document.getElementById("app-title");
+  const subtitle = document.querySelector(".app-subtitle");
+  if (!title || !subtitle) return;
+  if (targetId === "home") {
+    title.textContent = "CLOG";
+    subtitle.textContent = "Coffee log for brews, cafes, and beans";
+    return;
+  }
+  if (targetId === "tab-brew") {
+    title.textContent = "Brew";
+    subtitle.textContent = "Manual brew records and optimization";
+    return;
+  }
+  if (targetId === "tab-explore") {
+    title.textContent = "Cafes";
+    subtitle.textContent = "Visited and wish-list coffee shops";
+    return;
+  }
+  if (targetId === "tab-beans") {
+    title.textContent = "Beans";
+    subtitle.textContent = "Pantry, stock, and freshness window";
+    return;
+  }
+  if (targetId === "tab-settings") {
+    title.textContent = "Settings";
+    subtitle.textContent = "Data export, import, and reset";
+  }
+}
+
 function showPanel(targetId) {
   const panels = Array.from(document.querySelectorAll(".tab-panel"));
   panels.forEach(panel => {
     panel.classList.toggle("active", panel.id === targetId);
   });
+  setHeaderFor(targetId);
 }
 
 function initNavigation() {
@@ -82,6 +113,7 @@ function initApp() {
   bindBrewsUi();
   bindCafesUi();
   initSettings();
+  setHeaderFor("home");
 }
 
 if (document.readyState === "loading") {
