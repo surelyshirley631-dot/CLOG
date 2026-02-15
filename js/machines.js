@@ -37,6 +37,13 @@ function renderMachineList(list, machines) {
     li.className = "item";
     const main = document.createElement("div");
     main.className = "item-main";
+    if (machine.photoDataUrl) {
+      const thumb = document.createElement("img");
+      thumb.className = "bean-photo-thumb";
+      thumb.src = machine.photoDataUrl;
+      thumb.alt = machine.name || "Machine photo";
+      main.appendChild(thumb);
+    }
     const title = document.createElement("div");
     title.className = "item-title";
     title.textContent = machine.name;
@@ -48,6 +55,7 @@ function renderMachineList(list, machines) {
       main.appendChild(meta);
     }
     li.appendChild(main);
+    li.dataset.machineId = machine.id;
     list.appendChild(li);
   });
 }
@@ -56,9 +64,12 @@ export function bindMachinesUi() {
   const form = document.getElementById("machine-form");
   const nameInput = document.getElementById("machine-name-setting");
   const notesInput = document.getElementById("machine-notes-setting");
+  const photoInput = document.getElementById("machine-photo-setting");
   const list = document.getElementById("machine-list");
   const clearBtn = document.getElementById("clear-machines");
   if (!form || !nameInput || !list || !clearBtn) return;
+
+  let editingId = null;
 
   form.addEventListener("submit", event => {
     event.preventDefault();
@@ -66,25 +77,79 @@ export function bindMachinesUi() {
     const notes = notesInput ? notesInput.value.trim() : "";
     if (!name) return;
     const machines = loadMachines();
-    const exists = machines.some(m => m.name.toLowerCase() === name.toLowerCase());
-    if (!exists) {
-      machines.push({ id: generateId(), name, notes });
+    const file = photoInput && photoInput.files ? photoInput.files[0] : null;
+
+    const finalize = photoDataUrl => {
+      if (editingId) {
+        const idx = machines.findIndex(m => m.id === editingId);
+        if (idx !== -1) {
+          const existing = machines[idx];
+          machines[idx] = {
+            ...existing,
+            name,
+            notes,
+            photoDataUrl: photoDataUrl || existing.photoDataUrl || ""
+          };
+        }
+      } else {
+        const id = generateId();
+        machines.push({
+          id,
+          name,
+          notes,
+          photoDataUrl: photoDataUrl || ""
+        });
+      }
       saveMachines(machines);
+      editingId = null;
+      nameInput.value = "";
+      if (notesInput) {
+        notesInput.value = "";
+      }
+      if (photoInput) {
+        photoInput.value = "";
+      }
+      renderMachineList(list, machines);
+      const select = document.getElementById("coffee-machine");
+      if (select) {
+        renderMachineOptions(select);
+      }
+      document.dispatchEvent(new CustomEvent("machines-updated", { detail: { machines } }));
+    };
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        finalize(typeof reader.result === "string" ? reader.result : "");
+      };
+      reader.readAsDataURL(file);
+    } else {
+      finalize("");
     }
-    nameInput.value = "";
-    if (notesInput) notesInput.value = "";
-    renderMachineList(list, machines);
-    const select = document.getElementById("coffee-machine");
-    if (select) {
-      renderMachineOptions(select);
+  });
+
+  list.addEventListener("click", event => {
+    const target = event.target;
+    const li = target instanceof HTMLElement ? target.closest("li") : null;
+    if (!li || !li.dataset.machineId) return;
+    const machines = loadMachines();
+    const machine = machines.find(m => m.id === li.dataset.machineId);
+    if (!machine) return;
+    editingId = machine.id;
+    nameInput.value = machine.name || "";
+    if (notesInput) {
+      notesInput.value = machine.notes || "";
     }
-    document.dispatchEvent(new CustomEvent("machines-updated", { detail: { machines } }));
+    if (photoInput) {
+      photoInput.value = "";
+    }
   });
 
   clearBtn.addEventListener("click", () => {
     const confirmed = window.confirm("Clear all machines?");
     if (!confirmed) return;
     saveMachines([]);
+    editingId = null;
     renderMachineList(list, []);
     const select = document.getElementById("coffee-machine");
     if (select) {
@@ -100,4 +165,3 @@ export function bindMachinesUi() {
     renderMachineOptions(select);
   }
 }
-
