@@ -35,10 +35,11 @@ body {
 #splash {
   position: fixed;
   inset: 0;
-  background:
-    linear-gradient(180deg, rgba(215, 194, 183, 0.85), rgba(197, 172, 159, 0.9)),
-    url("https://miaobi-lite.bj.bcebos.com/miaobi/5mao/b%27LV8xNzM0OTM3MDA4LjEyNzQxMDRfMTczNDkzNzAwOC44Nzk0NjQ2XzE3MzQ5MzcwMDkuMjI0MzE2OF8xNzM0OTM3MDA5LjYxODI5Ng%3D%3D%27/3.png")
-      center center / cover no-repeat;
+  background-color: #d7c2b7;
+  background-image: url("https://miaobi-lite.bj.bcebos.com/miaobi/5mao/b%27LV8xNzM0OTM3MDA4LjEyNzQxMDRfMTczNDkzNzAwOC44Nzk0NjQ2XzE3MzQ5MzcwMDkuMjI0MzE2OF8xNzM0OTM3MDA5LjYxODI5Ng%3D%3D%27/3.png");
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -51,6 +52,9 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  padding: 16px 24px;
+  border-radius: 16px;
+  background: rgba(239, 235, 233, 0.82);
 }
 
 .splash-title {
