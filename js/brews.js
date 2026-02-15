@@ -1,6 +1,7 @@
 import { loadBrews, saveBrews } from "./storage.js";
 import { getBeans, renderBeansOptions, updateBeanStock } from "./beans.js";
 import { renderGrinderOptions } from "./grinders.js";
+import { renderMachineOptions } from "./machines.js";
 
 function generateId() {
   return `brew_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -64,13 +65,14 @@ export function bindBrewsUi() {
   const list = document.getElementById("brew-list");
   const clearBtn = document.getElementById("clear-brews");
   const beanSelect = document.getElementById("brew-bean");
-  const grinderSelect = document.getElementById("grinder-model");
+  const machineSelect = document.getElementById("coffee-machine");
+  const machineSourceSelect = document.getElementById("coffee-machine-source");
   const tipsCard = document.getElementById("brew-tips-card");
   const tipsList = document.getElementById("brew-tips-list");
-  if (!form || !list || !clearBtn || !beanSelect || !grinderSelect || !tipsCard || !tipsList) return;
+  if (!form || !list || !clearBtn || !beanSelect || !machineSelect || !machineSourceSelect || !tipsCard || !tipsList) return;
 
   renderBeansOptions(beanSelect);
-  renderGrinderOptions(grinderSelect);
+  syncCoffeeMachineOptions(machineSourceSelect, machineSelect);
   renderBrews(list, loadBrews());
 
   document.addEventListener("beans-updated", () => {
@@ -78,14 +80,26 @@ export function bindBrewsUi() {
   });
 
   document.addEventListener("grinders-updated", () => {
-    renderGrinderOptions(grinderSelect);
+    if (machineSourceSelect.value === "grinders") {
+      renderGrinderOptions(machineSelect);
+    }
+  });
+
+  document.addEventListener("machines-updated", () => {
+    if (machineSourceSelect.value === "machines") {
+      renderMachineOptions(machineSelect);
+    }
+  });
+
+  machineSourceSelect.addEventListener("change", () => {
+    syncCoffeeMachineOptions(machineSourceSelect, machineSelect);
   });
 
   form.addEventListener("submit", event => {
     event.preventDefault();
     const dateInput = document.getElementById("brew-date");
     const methodInput = document.getElementById("brew-method");
-    const grinderInput = document.getElementById("grinder-model");
+    const machineInput = document.getElementById("coffee-machine");
     const grindSizeInput = document.getElementById("grind-size");
     const tampInput = document.getElementById("tamp-pressure");
     const tampUnitSelect = document.getElementById("tamp-unit");
@@ -108,7 +122,7 @@ export function bindBrewsUi() {
       date: dateInput.value || new Date().toISOString().slice(0, 10),
       method: methodInput.value,
       beanId: beanSelect.value || "",
-      grinderModel: grinderInput ? grinderInput.value : "",
+      grinderModel: machineInput ? machineInput.value : "",
       grindSize: grindSizeInput ? grindSizeInput.value.trim() : "",
       tampPressure: tampInput && tampInput.value ? Number(tampInput.value) : null,
       tampUnit: tampUnitSelect ? tampUnitSelect.value : "kg",
@@ -135,6 +149,7 @@ export function bindBrewsUi() {
 
     form.reset();
     renderBeansOptions(beanSelect);
+    syncCoffeeMachineOptions(machineSourceSelect, machineSelect);
     renderBrews(list, brews);
 
     const tips = buildOptimizationTips(brew);
@@ -168,7 +183,8 @@ export function refillLastBrewIfConfirmed() {
   const dateInput = document.getElementById("brew-date");
   const methodInput = document.getElementById("brew-method");
   const beanSelect = document.getElementById("brew-bean");
-  const grinderSelect = document.getElementById("grinder-model");
+  const machineSelect = document.getElementById("coffee-machine");
+  const machineSourceSelect = document.getElementById("coffee-machine-source");
   const grindSizeInput = document.getElementById("grind-size");
   const tampInput = document.getElementById("tamp-pressure");
   const tampUnitSelect = document.getElementById("tamp-unit");
@@ -184,7 +200,8 @@ export function refillLastBrewIfConfirmed() {
   if (dateInput) dateInput.value = last.date || "";
   if (methodInput) methodInput.value = last.method || "espresso";
   if (beanSelect) beanSelect.value = last.beanId || "";
-  if (grinderSelect) grinderSelect.value = last.grinderModel || "";
+  if (machineSelect) machineSelect.value = last.grinderModel || "";
+  if (machineSourceSelect) machineSourceSelect.value = "machines";
   if (grindSizeInput) grindSizeInput.value = last.grindSize || "";
   if (tampInput) tampInput.value = last.tampPressure != null ? String(last.tampPressure) : "";
   if (tampUnitSelect && last.tampUnit) tampUnitSelect.value = last.tampUnit;
@@ -197,6 +214,15 @@ export function refillLastBrewIfConfirmed() {
   if (bodySelect) bodySelect.value = last.bodyRating || "";
   if (aftertasteSelect) aftertasteSelect.value = last.aftertasteRating || "";
   if (notesInput) notesInput.value = last.notes || "";
+}
+
+function syncCoffeeMachineOptions(sourceSelect, machineSelect) {
+  const source = sourceSelect.value;
+  if (source === "grinders") {
+    renderGrinderOptions(machineSelect);
+  } else {
+    renderMachineOptions(machineSelect);
+  }
 }
 
 function methodLabel(method) {
