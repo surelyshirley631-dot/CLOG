@@ -282,11 +282,15 @@
 <section class="card list-card">
 <div class="card-header">
 <h3>Saved brews</h3>
-<select id="home-brew-sort">
-<option value="date">Sort by date</option>
-<option value="score">Sort by score</option>
-<option value="machine">Sort by machine used</option>
+<div id="brew-sort-controls" class="settings-actions">
+<button type="button" class="secondary-button" data-sort="machine">Machines</button>
+<button type="button" class="secondary-button" data-sort="date">Date</button>
+<button type="button" class="secondary-button" data-sort="score">Score</button>
+<select id="brew-sort-direction">
+<option value="desc">倒序</option>
+<option value="asc">正序</option>
 </select>
+</div>
 </div>
 <ul id="home-brew-list" class="item-list"></ul>
 </section>

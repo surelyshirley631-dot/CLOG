@@ -175,22 +175,31 @@ export function bindBrewsUi() {
 }
 
 export function bindHomeBrewsPreview() {
-  const sortSelect = document.getElementById("home-brew-sort");
+  const controls = document.getElementById("brew-sort-controls");
+  const dirSelect = document.getElementById("brew-sort-direction");
   const list = document.getElementById("home-brew-list");
-  if (!sortSelect || !list) return;
+  if (!controls || !dirSelect || !list) return;
+  let criterion = "date";
   const apply = () => {
     const brews = loadBrews().slice();
-    const criterion = sortSelect.value || "date";
+    const dir = dirSelect.value || "desc";
+    const mul = dir === "asc" ? 1 : -1;
     if (criterion === "date") {
-      brews.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+      brews.sort((a, b) => mul * String(a.date || "").localeCompare(String(b.date || "")));
     } else if (criterion === "score") {
-      brews.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+      brews.sort((a, b) => mul * (Number(a.score || 0) - Number(b.score || 0)));
     } else if (criterion === "machine") {
-      brews.sort((a, b) => String(a.coffeeMachine || "").localeCompare(String(b.coffeeMachine || "")));
+      brews.sort((a, b) => mul * String(a.coffeeMachine || "").localeCompare(String(b.coffeeMachine || "")));
     }
     renderBrews(list, brews);
   };
-  sortSelect.addEventListener("change", apply);
+  controls.querySelectorAll("[data-sort]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      criterion = btn.getAttribute("data-sort") || "date";
+      apply();
+    });
+  });
+  dirSelect.addEventListener("change", apply);
   apply();
   document.addEventListener("brews-updated", apply);
 }
