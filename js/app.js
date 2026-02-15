@@ -34,9 +34,13 @@ function setHeaderFor(targetId) {
 }
 
 function showPanel(targetId) {
-  const panels = Array.from(document.querySelectorAll(".tab-panel"));
-  panels.forEach(panel => {
-    panel.classList.toggle("active", panel.id === targetId);
+  const ids = ["home", "tab-brew", "tab-explore", "tab-beans", "tab-settings"];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const isActive = id === targetId;
+    el.classList.toggle("active", isActive);
+    el.style.display = isActive ? "block" : "none";
   });
   const main = document.querySelector(".app-main");
   if (main) {
@@ -119,7 +123,7 @@ function initApp() {
   bindBrewsUi();
   bindCafesUi();
   initSettings();
-  setHeaderFor("home");
+  showPanel("home");
 }
 
 if (document.readyState === "loading") {
