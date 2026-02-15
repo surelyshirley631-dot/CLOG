@@ -63,16 +63,15 @@ body {
 }
 
 .lever {
-  transform-origin: 60px 16px;
   animation: leverPull 1600ms ease-in-out 1;
 }
 
 @keyframes leverPull {
-  0% { transform: rotate(0deg); }
-  20% { transform: rotate(10deg); }
-  50% { transform: rotate(60deg); }
-  80% { transform: rotate(10deg); }
-  100% { transform: rotate(0deg); }
+  0% { transform: translateY(0); }
+  20% { transform: translateY(4px); }
+  50% { transform: translateY(18px); }
+  80% { transform: translateY(4px); }
+  100% { transform: translateY(0); }
 }
 
 .app-shell {
