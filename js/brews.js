@@ -1,5 +1,6 @@
 import { loadBrews, saveBrews } from "./storage.js";
 import { getBeans, renderBeansOptions, updateBeanStock } from "./beans.js";
+import { renderGrinderOptions } from "./grinders.js";
 
 function generateId() {
   return `brew_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -63,15 +64,21 @@ export function bindBrewsUi() {
   const list = document.getElementById("brew-list");
   const clearBtn = document.getElementById("clear-brews");
   const beanSelect = document.getElementById("brew-bean");
+  const grinderSelect = document.getElementById("grinder-model");
   const tipsCard = document.getElementById("brew-tips-card");
   const tipsList = document.getElementById("brew-tips-list");
-  if (!form || !list || !clearBtn || !beanSelect || !tipsCard || !tipsList) return;
+  if (!form || !list || !clearBtn || !beanSelect || !grinderSelect || !tipsCard || !tipsList) return;
 
   renderBeansOptions(beanSelect);
+  renderGrinderOptions(grinderSelect);
   renderBrews(list, loadBrews());
 
   document.addEventListener("beans-updated", () => {
     renderBeansOptions(beanSelect);
+  });
+
+  document.addEventListener("grinders-updated", () => {
+    renderGrinderOptions(grinderSelect);
   });
 
   form.addEventListener("submit", event => {
@@ -101,7 +108,7 @@ export function bindBrewsUi() {
       date: dateInput.value || new Date().toISOString().slice(0, 10),
       method: methodInput.value,
       beanId: beanSelect.value || "",
-      grinderModel: grinderInput ? grinderInput.value.trim() : "",
+      grinderModel: grinderInput ? grinderInput.value : "",
       grindSize: grindSizeInput ? grindSizeInput.value.trim() : "",
       tampPressure: tampInput && tampInput.value ? Number(tampInput.value) : null,
       tampUnit: tampUnitSelect ? tampUnitSelect.value : "kg",
@@ -150,6 +157,46 @@ export function bindBrewsUi() {
     saveBrews([]);
     renderBrews(list, []);
   });
+}
+
+export function refillLastBrewIfConfirmed() {
+  const brews = loadBrews();
+  if (!brews.length) return;
+  const confirmed = window.confirm("Refill with the data from last time?");
+  if (!confirmed) return;
+  const last = brews[0];
+  const dateInput = document.getElementById("brew-date");
+  const methodInput = document.getElementById("brew-method");
+  const beanSelect = document.getElementById("brew-bean");
+  const grinderSelect = document.getElementById("grinder-model");
+  const grindSizeInput = document.getElementById("grind-size");
+  const tampInput = document.getElementById("tamp-pressure");
+  const tampUnitSelect = document.getElementById("tamp-unit");
+  const waterTempInput = document.getElementById("water-temp");
+  const doseInput = document.getElementById("dose-grams");
+  const yieldInput = document.getElementById("yield-grams");
+  const extractionInput = document.getElementById("extraction-time");
+  const aciditySelect = document.getElementById("acidity-rating");
+  const bitternessSelect = document.getElementById("bitterness-rating");
+  const bodySelect = document.getElementById("body-rating");
+  const aftertasteSelect = document.getElementById("aftertaste-rating");
+  const notesInput = document.getElementById("brew-notes");
+  if (dateInput) dateInput.value = last.date || "";
+  if (methodInput) methodInput.value = last.method || "espresso";
+  if (beanSelect) beanSelect.value = last.beanId || "";
+  if (grinderSelect) grinderSelect.value = last.grinderModel || "";
+  if (grindSizeInput) grindSizeInput.value = last.grindSize || "";
+  if (tampInput) tampInput.value = last.tampPressure != null ? String(last.tampPressure) : "";
+  if (tampUnitSelect && last.tampUnit) tampUnitSelect.value = last.tampUnit;
+  if (waterTempInput) waterTempInput.value = last.waterTemp != null ? String(last.waterTemp) : "";
+  if (doseInput) doseInput.value = last.doseGrams != null ? String(last.doseGrams) : "";
+  if (yieldInput) yieldInput.value = last.yieldGrams != null ? String(last.yieldGrams) : "";
+  if (extractionInput) extractionInput.value = last.extractionTime != null ? String(last.extractionTime) : "";
+  if (aciditySelect) aciditySelect.value = last.acidityRating || "";
+  if (bitternessSelect) bitternessSelect.value = last.bitternessRating || "";
+  if (bodySelect) bodySelect.value = last.bodyRating || "";
+  if (aftertasteSelect) aftertasteSelect.value = last.aftertasteRating || "";
+  if (notesInput) notesInput.value = last.notes || "";
 }
 
 function methodLabel(method) {
@@ -240,4 +287,3 @@ function renderBrews(list, brews) {
     list.appendChild(li);
   });
 }
-

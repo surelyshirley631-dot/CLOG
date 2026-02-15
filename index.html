@@ -100,7 +100,9 @@
 </div>
 <div class="field-group">
 <label for="grinder-model">Grinder model</label>
-<input type="text" id="grinder-model" placeholder="e.g. Niche Zero">
+<select id="grinder-model">
+<option value="">No grinder selected</option>
+</select>
 </div>
 <div class="field-group">
 <label for="grind-size">Grind size</label>
@@ -339,6 +341,20 @@
 </div>
 <button type="button" id="reset-data" class="danger-button">Reset all data</button>
 <p class="settings-hint">All data is stored locally in this browser.</p>
+</section>
+<section class="card">
+<h3>Grinder models</h3>
+<form id="grinder-form" class="form-grid">
+<div class="field-group full-width">
+<label for="grinder-name-setting">Grinder model name</label>
+<input type="text" id="grinder-name-setting" placeholder="e.g. Niche Zero" required>
+</div>
+<div class="form-actions full-width">
+<button type="submit" class="primary-button">Add grinder</button>
+<button type="button" id="clear-grinders" class="ghost-button">Clear grinders</button>
+</div>
+</form>
+<ul id="grinder-list" class="item-list"></ul>
 </section>
 </section>
 </main>

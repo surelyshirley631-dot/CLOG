@@ -1,6 +1,7 @@
-import { bindBrewsUi } from "./brews.js";
+import { bindBrewsUi, refillLastBrewIfConfirmed } from "./brews.js";
 import { bindCafesUi } from "./cafes.js";
 import { bindBeansUi } from "./beans.js";
+import { bindGrindersUi } from "./grinders.js";
 import { exportAll, importAll, resetAll } from "./storage.js";
 
 function setHeaderFor(targetId) {
@@ -58,7 +59,12 @@ function initNavigation() {
     card.addEventListener("click", () => {
       const targetId = card.getAttribute("data-target");
       if (!targetId) return;
-      showPanel(targetId);
+      if (targetId === "tab-brew") {
+        showPanel(targetId);
+        refillLastBrewIfConfirmed();
+      } else {
+        showPanel(targetId);
+      }
     });
   });
   if (title) {
@@ -120,6 +126,7 @@ function initSettings() {
 function initApp() {
   initNavigation();
   bindBeansUi();
+  bindGrindersUi();
   bindBrewsUi();
   bindCafesUi();
   initSettings();

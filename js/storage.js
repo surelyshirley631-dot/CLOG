@@ -1,7 +1,8 @@
 const STORAGE_KEYS = {
   brews: "clog_brews",
   cafes: "clog_cafes",
-  beans: "clog_beans"
+  beans: "clog_beans",
+  grinders: "clog_grinders"
 };
 
 function safeParse(value, fallback) {
@@ -37,11 +38,20 @@ export function saveBeans(beans) {
   localStorage.setItem(STORAGE_KEYS.beans, JSON.stringify(beans));
 }
 
+export function loadGrinders() {
+  return safeParse(localStorage.getItem(STORAGE_KEYS.grinders), []);
+}
+
+export function saveGrinders(grinders) {
+  localStorage.setItem(STORAGE_KEYS.grinders, JSON.stringify(grinders));
+}
+
 export function exportAll() {
   return {
     brews: loadBrews(),
     cafes: loadCafes(),
-    beans: loadBeans()
+    beans: loadBeans(),
+    grinders: loadGrinders()
   };
 }
 
@@ -49,11 +59,12 @@ export function importAll(data) {
   if (data && Array.isArray(data.brews)) saveBrews(data.brews);
   if (data && Array.isArray(data.cafes)) saveCafes(data.cafes);
   if (data && Array.isArray(data.beans)) saveBeans(data.beans);
+  if (data && Array.isArray(data.grinders)) saveGrinders(data.grinders);
 }
 
 export function resetAll() {
   localStorage.removeItem(STORAGE_KEYS.brews);
   localStorage.removeItem(STORAGE_KEYS.cafes);
   localStorage.removeItem(STORAGE_KEYS.beans);
+  localStorage.removeItem(STORAGE_KEYS.grinders);
 }
-
