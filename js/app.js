@@ -2,6 +2,7 @@ import { bindBrewsUi, refillLastBrewIfConfirmed } from "./brews.js";
 import { bindCafesUi } from "./cafes.js";
 import { bindBeansUi } from "./beans.js";
 import { bindGrindersUi } from "./grinders.js";
+import { bindMachinesUi } from "./machines.js";
 import { exportAll, importAll, resetAll } from "./storage.js";
 
 function setHeaderFor(targetId) {
@@ -28,6 +29,16 @@ function setHeaderFor(targetId) {
     subtitle.textContent = "Pantry, stock, and freshness window";
     return;
   }
+  if (targetId === "tab-grinders") {
+    title.textContent = "Grinder model";
+    subtitle.textContent = "Your grinders library";
+    return;
+  }
+  if (targetId === "tab-machines") {
+    title.textContent = "My machines";
+    subtitle.textContent = "Espresso and coffee gear";
+    return;
+  }
   if (targetId === "tab-settings") {
     title.textContent = "Settings";
     subtitle.textContent = "Data export, import, and reset";
@@ -35,7 +46,7 @@ function setHeaderFor(targetId) {
 }
 
 function showPanel(targetId) {
-  const ids = ["home", "tab-brew", "tab-explore", "tab-beans", "tab-settings"];
+  const ids = ["home", "tab-brew", "tab-explore", "tab-beans", "tab-grinders", "tab-machines", "tab-settings"];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -127,6 +138,7 @@ function initApp() {
   initNavigation();
   bindBeansUi();
   bindGrindersUi();
+  bindMachinesUi();
   bindBrewsUi();
   bindCafesUi();
   initSettings();

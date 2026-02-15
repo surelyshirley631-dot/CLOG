@@ -126,16 +126,16 @@
 <small class="field-help">Beans are managed in the Beans tab.</small>
 </div>
 <div class="field-group">
-<label for="coffee-machine">Coffee machine</label>
-<div class="inline-fields">
-<select id="coffee-machine-source">
-<option value="machines">My machines</option>
-<option value="grinders">Grinder model</option>
-</select>
-<select id="coffee-machine">
+<label for="brew-machine">Coffee machine</label>
+<select id="brew-machine">
 <option value="">No machine selected</option>
 </select>
 </div>
+<div class="field-group">
+<label for="brew-grinder">Grinder model</label>
+<select id="brew-grinder">
+<option value="">No grinder selected</option>
+</select>
 </div>
 <div class="field-group">
 <label for="grind-size">Grind size</label>
@@ -143,17 +143,20 @@
 </div>
 <div class="field-group">
 <label for="tamp-pressure">Tamping pressure</label>
-<div class="inline-fields">
-<input type="number" id="tamp-pressure" min="0" step="0.5" placeholder="e.g. 15">
-<select id="tamp-unit">
-<option value="kg">kg</option>
-<option value="lbs">lbs</option>
+<select id="tamp-pressure">
+<option value="">Not set</option>
+<option value="low">Low</option>
+<option value="medium">Medium</option>
+<option value="high">High</option>
 </select>
-</div>
 </div>
 <div class="field-group">
 <label for="water-temp">Water temperature (°C)</label>
 <input type="number" id="water-temp" min="0" max="100" step="0.5">
+</div>
+<div class="field-group">
+<label for="water-pressure">Water pressure (bar, ideally 9)</label>
+<input type="number" id="water-pressure" min="0" step="0.1" placeholder="9">
 </div>
 <div class="field-group">
 <label>Brew ratio (grounds vs. yield)</label>
