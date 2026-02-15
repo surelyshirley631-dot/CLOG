@@ -503,7 +503,8 @@ legend {
 
   .home-grid {
     height: 60vh;
-    align-content: space-between;
+    align-content: center;
+    row-gap: 26px;
   }
 
   .home-card {
