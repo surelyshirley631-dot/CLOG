@@ -327,44 +327,6 @@
 <label for="cafe-search">Search cafes</label>
 <input type="search" id="cafe-search" placeholder="Search by name, origin, or city">
 </div>
-<div class="card-header">
-<h3>My brews</h3>
-<select id="home-brew-sort">
-<option value="date">Sort by date</option>
-<option value="score">Sort by score</option>
-<option value="machine">Sort by machine used</option>
-</select>
-</div>
-<ul id="home-brew-list" class="item-list"></ul>
-</section>
-<section class="card">
-<h3>Golden Rules</h3>
-<div class="golden-rules">
-<h4>Coffee Grinding: The Golden Rules (App Integration Logic)</h4>
-<h5>1. Fundamental System Constraints</h5>
-<ul>
-<li>The 15-Minute Rule: 60% of flavor compounds dissipate within 15 minutes of grinding. App logic: Trigger a "Grind now" reminder before brewing.</li>
-<li>Uniformity Over Fineness: Prioritize burr consistency (Flat vs. Conical) over sheer grind size. Inconsistent particles cause muddled extraction (simultaneous bitter/sour notes).</li>
-<li>Thermal Stability: Friction from continuous grinding heats the burrs, accelerating oil release. Logic: Suggest a +0.5 coarseness offset for back-to-back brewing sessions.</li>
-</ul>
-<h5>2. Origin-Specific Grinding Logic</h5>
-<ul>
-<li>Ethiopian (High Density / High Altitude / Heirloom): High fines, risk of clogging filters. Adjustment: +0.5 to +1.0 click (Coarser). Goal: Maintain flow rate and prevent choking.</li>
-<li>Colombian (Medium Density / Standard Baseline): Baseline bean. Adjustment: 0 (Neutral). Goal: Balanced extraction; use as calibration for new grinders.</li>
-</ul>
-<h5>3. Roast Degree Compensation (Dynamic Offset)</h5>
-<ul>
-<li>Light Roast: Low solubility. Strategy: -0.5 to -1.0 click (Finer) to increase surface area.</li>
-<li>Dark Roast: High porosity and solubility. Strategy: +1.0 to +2.0 clicks (Coarser) to prevent burnt bitterness.</li>
-</ul>
-<h5>4. Post-Brew Feedback Loop (Troubleshooting)</h5>
-<ul>
-<li>Flow Rate: Draw-down too slow -> Suggest Coarser (+1). Too fast -> Suggest Finer (-1).</li>
-<li>Sensory: Astringent/Bitter -> Over-extracted -> Increase grind size. Sour/Thin -> Under-extracted -> Decrease grind size.</li>
-</ul>
-</div>
-</section>
-</section>
 </section>
 <form id="cafe-form" class="card form-grid">
 <div class="field-group">
