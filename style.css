@@ -531,6 +531,13 @@ legend {
   cursor: pointer;
 }
 
+.chip-active {
+  background: rgba(255, 183, 77, 0.18);
+  color: #e65100;
+  border: 1px solid rgba(255, 183, 77, 0.55);
+  box-shadow: 0 2px 6px rgba(255, 152, 0, 0.25);
+}
+
 .cafe-photo-thumb {
   width: 64px;
   height: 64px;

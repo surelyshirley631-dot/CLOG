@@ -180,6 +180,12 @@ export function bindHomeBrewsPreview() {
   const list = document.getElementById("home-brew-list");
   if (!controls || !dirSelect || !list) return;
   let criterion = "date";
+  const setActive = () => {
+    controls.querySelectorAll("[data-sort]").forEach(btn => {
+      const isActive = (btn.getAttribute("data-sort") || "") === criterion;
+      btn.classList.toggle("chip-active", Boolean(isActive));
+    });
+  };
   const apply = () => {
     const brews = loadBrews().slice();
     const dir = dirSelect.value || "desc";
@@ -192,6 +198,7 @@ export function bindHomeBrewsPreview() {
       brews.sort((a, b) => mul * String(a.coffeeMachine || "").localeCompare(String(b.coffeeMachine || "")));
     }
     renderBrews(list, brews);
+    setActive();
   };
   controls.querySelectorAll("[data-sort]").forEach(btn => {
     btn.addEventListener("click", () => {
