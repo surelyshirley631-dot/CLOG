@@ -38,6 +38,12 @@ function showPanel(targetId) {
   panels.forEach(panel => {
     panel.classList.toggle("active", panel.id === targetId);
   });
+  const main = document.querySelector(".app-main");
+  if (main) {
+    main.scrollTop = 0;
+  } else {
+    window.scrollTo(0, 0);
+  }
   setHeaderFor(targetId);
 }
 
