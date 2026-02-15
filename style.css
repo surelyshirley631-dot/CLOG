@@ -35,7 +35,10 @@ body {
 #splash {
   position: fixed;
   inset: 0;
-  background: linear-gradient(180deg, #d7c2b7, #c5ac9f);
+  background:
+    linear-gradient(180deg, rgba(215, 194, 183, 0.85), rgba(197, 172, 159, 0.9)),
+    url("https://miaobi-lite.bj.bcebos.com/miaobi/5mao/b%27LV8xNzM0OTM3MDA4LjEyNzQxMDRfMTczNDkzNzAwOC44Nzk0NjQ2XzE3MzQ5MzcwMDkuMjI0MzE2OF8xNzM0OTM3MDA5LjYxODI5Ng%3D%3D%27/3.png")
+      center center / cover no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
