@@ -178,7 +178,7 @@ function initApp() {
     setTimeout(() => {
       splash.style.opacity = "0";
       splash.style.pointerEvents = "none";
-    }, 800);
+    }, 1700);
   }
 }
 

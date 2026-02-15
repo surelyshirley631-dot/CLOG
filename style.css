@@ -64,13 +64,14 @@ body {
 
 .lever {
   transform-origin: 60px 16px;
-  animation: leverPull 1200ms ease-in-out 1;
+  animation: leverPull 1600ms ease-in-out 1;
 }
 
 @keyframes leverPull {
   0% { transform: rotate(0deg); }
-  40% { transform: rotate(30deg); }
-  80% { transform: rotate(0deg); }
+  20% { transform: rotate(10deg); }
+  50% { transform: rotate(60deg); }
+  80% { transform: rotate(10deg); }
   100% { transform: rotate(0deg); }
 }
 
