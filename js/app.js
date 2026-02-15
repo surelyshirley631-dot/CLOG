@@ -1,5 +1,4 @@
-import { bindBrewsUi, refillLastBrewIfConfirmed } from "./brews.js";
-import { bindHomeBrewsPreview } from "./brews.js";
+import { bindBrewsUi, refillLastBrewIfConfirmed, bindHomeBrewsPreview } from "./brews.js";
 import { bindCafesUi } from "./cafes.js";
 import { bindBeansUi } from "./beans.js";
 import { bindGrindersUi } from "./grinders.js";
@@ -62,10 +61,14 @@ function showPanel(targetId) {
     window.scrollTo(0, 0);
   }
   setHeaderFor(targetId);
+  const dataBtn = document.getElementById("data-button");
+  if (dataBtn) {
+    dataBtn.style.display = targetId === "home" ? "block" : "none";
+  }
 }
 
 function initNavigation() {
-  const homeCards = Array.from(document.querySelectorAll(".home-card"));
+  const homeCards = Array.from(document.querySelectorAll(".home-card, .split-card"));
   const title = document.getElementById("app-title");
   const dataBtn = document.getElementById("data-button");
   homeCards.forEach(card => {
@@ -85,6 +88,14 @@ function initNavigation() {
       showPanel("home");
     });
   }
+  const navButtons = Array.from(document.querySelectorAll("[data-nav-target]"));
+  navButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.getAttribute("data-nav-target");
+      if (!targetId) return;
+      showPanel(targetId);
+    });
+  });
   if (dataBtn) {
     dataBtn.addEventListener("click", () => {
       showPanel("tab-settings");

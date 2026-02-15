@@ -116,6 +116,31 @@ body {
   transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease;
 }
 
+.home-card-split {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.split-card {
+  border-radius: 18px;
+  padding: 14px 12px;
+  background: radial-gradient(circle at top left, rgba(255, 224, 178, 0.8), rgba(239, 235, 233, 0.98));
+  color: var(--coffee-text-soft);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 10px 22px rgba(93, 64, 55, 0.25);
+  transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease;
+  cursor: pointer;
+}
+
+.split-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 26px rgba(93, 64, 55, 0.32);
+}
+
 .home-card:focus-visible {
   outline: 2px solid var(--coffee-accent-strong);
   outline-offset: 2px;

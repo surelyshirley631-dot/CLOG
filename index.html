@@ -29,6 +29,20 @@
 <span class="home-card-subtitle">Manual brew log and precision tracking</span>
 </div>
 </button>
+<button class="home-card" data-target="tab-beans">
+<div class="home-icon-wrap">
+<svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
+<ellipse cx="16" cy="18" rx="6" ry="10"></ellipse>
+<ellipse cx="24" cy="22" rx="6" ry="10"></ellipse>
+<path d="M14 10 C12 16 18 20 16 26"></path>
+<path d="M22 14 C20 20 26 22 24 28"></path>
+</svg>
+</div>
+<div class="home-card-text">
+<span class="home-card-title">Beans</span>
+<span class="home-card-subtitle">Pantry, stock, and freshness</span>
+</div>
+</button>
 <button class="home-card" data-target="tab-explore">
 <div class="home-icon-wrap">
 <svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
@@ -42,22 +56,23 @@
 <span class="home-card-title">Cafes</span>
 <span class="home-card-subtitle">Visited and wish-list coffee shops</span>
 </div>
-</button>
-<button class="home-card" data-target="tab-beans">
-<div class="home-icon-wrap">
-<svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
-<ellipse cx="16" cy="18" rx="6" ry="10"></ellipse>
-<ellipse cx="24" cy="22" rx="6" ry="10"></ellipse>
-<path d="M14 10 C12 16 18 20 16 26" ></path>
-<path d="M22 14 C20 20 26 22 24 28" ></path>
-</svg>
-</div>
-<div class="home-card-text">
-<span class="home-card-title">Beans</span>
-<span class="home-card-subtitle">Pantry, stock, and freshness</span>
-</div>
-</button>
- <button class="home-card" data-target="tab-grinders">
+ </button>
+ <section class="home-card-split">
+ <div class="split-card" data-target="tab-machines" aria-label="Coffee machine">
+ <div class="home-icon-wrap">
+ <svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
+ <rect x="9" y="12" width="22" height="14" rx="3" ry="3"></rect>
+ <rect x="12" y="9" width="6" height="4" rx="1" ry="1"></rect>
+ <rect x="21" y="9" width="6" height="4" rx="1" ry="1"></rect>
+ <rect x="17" y="27" width="6" height="3" rx="1.5" ry="1.5"></rect>
+ </svg>
+ </div>
+ <div class="home-card-text">
+ <span class="home-card-title">Coffee machine</span>
+ <span class="home-card-subtitle">Manage your machines</span>
+ </div>
+ </div>
+ <div class="split-card" data-target="tab-grinders" aria-label="Grinder model">
  <div class="home-icon-wrap">
  <svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
  <rect x="10" y="12" width="20" height="14" rx="2" ry="2"></rect>
@@ -69,22 +84,47 @@
  <span class="home-card-title">Grinder model</span>
  <span class="home-card-subtitle">Your grinders library</span>
  </div>
- </button>
- <button class="home-card" data-target="tab-machines">
- <div class="home-icon-wrap">
- <svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
- <rect x="9" y="12" width="22" height="14" rx="3" ry="3"></rect>
- <rect x="12" y="9" width="6" height="4" rx="1" ry="1"></rect>
- <rect x="21" y="9" width="6" height="4" rx="1" ry="1"></rect>
- <rect x="17" y="27" width="6" height="3" rx="1.5" ry="1.5"></rect>
- </svg>
  </div>
- <div class="home-card-text">
- <span class="home-card-title">My machines</span>
- <span class="home-card-subtitle">Espresso and coffee gear</span>
+ </section>
  </div>
- </button>
+ <section class="card list-card home-brews-card">
+ <div class="card-header">
+ <h3>My brews</h3>
+ <select id="home-brew-sort">
+ <option value="date">Sort by date</option>
+ <option value="score">Sort by score</option>
+ <option value="machine">Sort by machine used</option>
+ </select>
  </div>
+ <ul id="home-brew-list" class="item-list"></ul>
+ </section>
+ <section class="card">
+ <h3>Golden Rules</h3>
+ <div class="golden-rules">
+ <h4>Coffee Grinding: The Golden Rules (App Integration Logic)</h4>
+ <h5>1. Fundamental System Constraints</h5>
+ <ul>
+ <li>The 15-Minute Rule: 60% of flavor compounds dissipate within 15 minutes of grinding. App logic: Trigger a "Grind now" reminder before brewing.</li>
+ <li>Uniformity Over Fineness: Prioritize burr consistency (Flat vs. Conical) over sheer grind size. Inconsistent particles cause muddled extraction (simultaneous bitter/sour notes).</li>
+ <li>Thermal Stability: Friction from continuous grinding heats the burrs, accelerating oil release. Logic: Suggest a +0.5 coarseness offset for back-to-back brewing sessions.</li>
+ </ul>
+ <h5>2. Origin-Specific Grinding Logic</h5>
+ <ul>
+ <li>Ethiopian (High Density / High Altitude / Heirloom): High fines, risk of clogging filters. Adjustment: +0.5 to +1.0 click (Coarser). Goal: Maintain flow rate and prevent choking.</li>
+ <li>Colombian (Medium Density / Standard Baseline): Baseline bean. Adjustment: 0 (Neutral). Goal: Balanced extraction; use as calibration for new grinders.</li>
+ </ul>
+ <h5>3. Roast Degree Compensation (Dynamic Offset)</h5>
+ <ul>
+ <li>Light Roast: Low solubility. Strategy: -0.5 to -1.0 click (Finer) to increase surface area.</li>
+ <li>Dark Roast: High porosity and solubility. Strategy: +1.0 to +2.0 clicks (Coarser) to prevent burnt bitterness.</li>
+ </ul>
+ <h5>4. Post-Brew Feedback Loop (Troubleshooting)</h5>
+ <ul>
+ <li>Flow Rate: Draw-down too slow -> Suggest Coarser (+1). Too fast -> Suggest Finer (-1).</li>
+ <li>Sensory: Astringent/Bitter -> Over-extracted -> Increase grind size. Sour/Thin -> Under-extracted -> Decrease grind size.</li>
+ </ul>
+ </div>
+ </section>
  </section>
 <section id="tab-brew" class="tab-panel">
 <h2>Brew Log</h2>
@@ -425,7 +465,6 @@
 </div>
 <ul id="bean-list" class="item-list"></ul>
 </section>
-<button id="data-button" class="data-bar" aria-label="Open Data">Data</button>
 </section>
 <section id="tab-grinders" class="tab-panel">
 <h2>Grinder models</h2>
@@ -472,9 +511,9 @@
 </section>
 </section>
 <section id="tab-settings" class="tab-panel">
-<h2>Settings</h2>
+<h2>Data</h2>
 <section class="card">
-<h3>Data</h3>
+<h3>Backup and export</h3>
 <div class="settings-actions">
 <button type="button" id="export-data" class="secondary-button">Export data</button>
 <label class="import-label">
@@ -482,11 +521,15 @@
 <input type="file" id="import-data" accept="application/json">
 </label>
 </div>
+<div class="settings-actions">
+<button type="button" class="secondary-button" data-nav-target="tab-beans">Open beans pantry</button>
+</div>
 <button type="button" id="reset-data" class="danger-button">Reset all data</button>
 <p class="settings-hint">All data is stored locally in this browser.</p>
 </section>
 </section>
 </main>
+<button id="data-button" class="data-bar" aria-label="Open Data">Data</button>
 </div>
 <script type="module" src="./js/app.js"></script>
 </body>
