@@ -157,7 +157,6 @@
 <label for="water-pressure">Water pressure (bar, ideally 9)</label>
 <select id="water-pressure">
 <option value="">not available</option>
-<option value="0">0</option>
 <option value="1">1</option>
 <option value="2">2</option>
 <option value="3">3</option>
@@ -402,7 +401,7 @@
 </section>
 </section>
 <section id="tab-beans" class="tab-panel">
-<h2>Beans Pantry</h2>
+<h2>Coffee Bean Inventory (The Pantry)</h2>
 <form id="bean-form" class="card form-grid">
 <div class="field-group">
 <label for="bean-name">Bean name</label>
@@ -423,6 +422,7 @@
 <div class="field-group">
 <label for="bean-weight">Initial weight (g)</label>
 <input type="number" id="bean-weight" min="0" step="1">
+<small class="field-help">Set starting weight; brews auto-subtract dose.</small>
 </div>
 <div class="field-group">
 <label for="bean-notes">Notes</label>
