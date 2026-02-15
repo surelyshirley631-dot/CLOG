@@ -19,6 +19,11 @@ function setHeaderFor(targetId) {
     subtitle.textContent = "Manual brew records and optimization";
     return;
   }
+  if (targetId === "tab-mybrews") {
+    title.textContent = "My brews";
+    subtitle.textContent = "Saved brew data and sorting";
+    return;
+  }
   if (targetId === "tab-explore") {
     title.textContent = "Cafes";
     subtitle.textContent = "Visited and wish-list coffee shops";
@@ -39,6 +44,11 @@ function setHeaderFor(targetId) {
     subtitle.textContent = "Espresso and coffee gear";
     return;
   }
+  if (targetId === "tab-rules") {
+    title.textContent = "Golden Rules";
+    subtitle.textContent = "Grinding principles and logic";
+    return;
+  }
   if (targetId === "tab-settings") {
     title.textContent = "Data";
     subtitle.textContent = "Export, import, and reset";
@@ -46,7 +56,7 @@ function setHeaderFor(targetId) {
 }
 
 function showPanel(targetId) {
-  const ids = ["home", "tab-brew", "tab-explore", "tab-beans", "tab-grinders", "tab-machines", "tab-settings"];
+  const ids = ["home", "tab-brew", "tab-mybrews", "tab-explore", "tab-beans", "tab-grinders", "tab-machines", "tab-rules", "tab-settings"];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;

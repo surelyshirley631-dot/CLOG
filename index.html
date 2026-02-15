@@ -29,6 +29,20 @@
 <span class="home-card-subtitle">Manual brew log and precision tracking</span>
 </div>
 </button>
+<button class="home-card" data-target="tab-mybrews">
+<div class="home-icon-wrap">
+<svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
+<rect x="8" y="10" width="24" height="16" rx="3" ry="3"></rect>
+<line x1="12" y1="14" x2="28" y2="14"></line>
+<line x1="12" y1="18" x2="26" y2="18"></line>
+<line x1="12" y1="22" x2="22" y2="22"></line>
+</svg>
+</div>
+<div class="home-card-text">
+<span class="home-card-title">My brews</span>
+<span class="home-card-subtitle">Saved brew data</span>
+</div>
+</button>
 <button class="home-card" data-target="tab-beans">
 <div class="home-icon-wrap">
 <svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
@@ -57,75 +71,35 @@
 <span class="home-card-subtitle">Visited and wish-list coffee shops</span>
 </div>
  </button>
- <section class="home-card-split">
- <div class="split-card" data-target="tab-machines" aria-label="Coffee machine">
- <div class="home-icon-wrap">
- <svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
- <rect x="9" y="12" width="22" height="14" rx="3" ry="3"></rect>
- <rect x="12" y="9" width="6" height="4" rx="1" ry="1"></rect>
- <rect x="21" y="9" width="6" height="4" rx="1" ry="1"></rect>
- <rect x="17" y="27" width="6" height="3" rx="1.5" ry="1.5"></rect>
- </svg>
+<button class="home-card" data-target="tab-machines">
+<div class="home-icon-wrap">
+<svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
+<rect x="9" y="12" width="22" height="14" rx="3" ry="3"></rect>
+<rect x="12" y="9" width="6" height="4" rx="1" ry="1"></rect>
+<rect x="21" y="9" width="6" height="4" rx="1" ry="1"></rect>
+<rect x="17" y="27" width="6" height="3" rx="1.5" ry="1.5"></rect>
+</svg>
+</div>
+<div class="home-card-text">
+<span class="home-card-title">My machines</span>
+<span class="home-card-subtitle">Coffee machine • Grinder model</span>
+</div>
+</button>
+<button class="home-card" data-target="tab-rules">
+<div class="home-icon-wrap">
+<svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
+<rect x="10" y="9" width="20" height="22" rx="2" ry="2"></rect>
+<line x1="13" y1="14" x2="27" y2="14"></line>
+<line x1="13" y1="19" x2="25" y2="19"></line>
+<line x1="13" y1="24" x2="22" y2="24"></line>
+</svg>
+</div>
+<div class="home-card-text">
+<span class="home-card-title">Golden Rules</span>
+<span class="home-card-subtitle">Grinding principles</span>
+</div>
+</button>
  </div>
- <div class="home-card-text">
- <span class="home-card-title">Coffee machine</span>
- <span class="home-card-subtitle">Manage your machines</span>
- </div>
- </div>
- <div class="split-card" data-target="tab-grinders" aria-label="Grinder model">
- <div class="home-icon-wrap">
- <svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
- <rect x="10" y="12" width="20" height="14" rx="2" ry="2"></rect>
- <rect x="14" y="8" width="12" height="4" rx="1" ry="1"></rect>
- <rect x="16" y="26" width="8" height="4" rx="1" ry="1"></rect>
- </svg>
- </div>
- <div class="home-card-text">
- <span class="home-card-title">Grinder model</span>
- <span class="home-card-subtitle">Your grinders library</span>
- </div>
- </div>
- </section>
- </div>
- <section class="card list-card home-brews-card">
- <div class="card-header">
- <h3>My brews</h3>
- <select id="home-brew-sort">
- <option value="date">Sort by date</option>
- <option value="score">Sort by score</option>
- <option value="machine">Sort by machine used</option>
- </select>
- </div>
- <ul id="home-brew-list" class="item-list"></ul>
- </section>
- <section class="card">
- <h3>Golden Rules</h3>
- <div class="golden-rules">
- <h4>Coffee Grinding: The Golden Rules (App Integration Logic)</h4>
- <h5>1. Fundamental System Constraints</h5>
- <ul>
- <li>The 15-Minute Rule: 60% of flavor compounds dissipate within 15 minutes of grinding. App logic: Trigger a "Grind now" reminder before brewing.</li>
- <li>Uniformity Over Fineness: Prioritize burr consistency (Flat vs. Conical) over sheer grind size. Inconsistent particles cause muddled extraction (simultaneous bitter/sour notes).</li>
- <li>Thermal Stability: Friction from continuous grinding heats the burrs, accelerating oil release. Logic: Suggest a +0.5 coarseness offset for back-to-back brewing sessions.</li>
- </ul>
- <h5>2. Origin-Specific Grinding Logic</h5>
- <ul>
- <li>Ethiopian (High Density / High Altitude / Heirloom): High fines, risk of clogging filters. Adjustment: +0.5 to +1.0 click (Coarser). Goal: Maintain flow rate and prevent choking.</li>
- <li>Colombian (Medium Density / Standard Baseline): Baseline bean. Adjustment: 0 (Neutral). Goal: Balanced extraction; use as calibration for new grinders.</li>
- </ul>
- <h5>3. Roast Degree Compensation (Dynamic Offset)</h5>
- <ul>
- <li>Light Roast: Low solubility. Strategy: -0.5 to -1.0 click (Finer) to increase surface area.</li>
- <li>Dark Roast: High porosity and solubility. Strategy: +1.0 to +2.0 clicks (Coarser) to prevent burnt bitterness.</li>
- </ul>
- <h5>4. Post-Brew Feedback Loop (Troubleshooting)</h5>
- <ul>
- <li>Flow Rate: Draw-down too slow -> Suggest Coarser (+1). Too fast -> Suggest Finer (-1).</li>
- <li>Sensory: Astringent/Bitter -> Over-extracted -> Increase grind size. Sour/Thin -> Under-extracted -> Decrease grind size.</li>
- </ul>
- </div>
- </section>
- </section>
 <section id="tab-brew" class="tab-panel">
 <h2>Brew Log</h2>
 <form id="brew-form" class="card form-grid">
@@ -294,6 +268,49 @@
 <section class="card tips-card" id="brew-tips-card" hidden>
 <h3>Brew optimization tips</h3>
 <ul id="brew-tips-list"></ul>
+</section>
+<section id="tab-rules" class="tab-panel">
+<h2>Golden Rules</h2>
+<section class="card">
+<div class="golden-rules">
+<h4>Coffee Grinding: The Golden Rules (App Integration Logic)</h4>
+<h5>1. Fundamental System Constraints</h5>
+<ul>
+<li>The 15-Minute Rule: 60% of flavor compounds dissipate within 15 minutes of grinding. App logic: Trigger a "Grind now" reminder before brewing.</li>
+<li>Uniformity Over Fineness: Prioritize burr consistency (Flat vs. Conical) over sheer grind size. Inconsistent particles cause muddled extraction (simultaneous bitter/sour notes).</li>
+<li>Thermal Stability: Friction from continuous grinding heats the burrs, accelerating oil release. Logic: Suggest a +0.5 coarseness offset for back-to-back brewing sessions.</li>
+</ul>
+<h5>2. Origin-Specific Grinding Logic</h5>
+<ul>
+<li>Ethiopian (High Density / High Altitude / Heirloom): High fines, risk of clogging filters. Adjustment: +0.5 to +1.0 click (Coarser). Goal: Maintain flow rate and prevent choking.</li>
+<li>Colombian (Medium Density / Standard Baseline): Baseline bean. Adjustment: 0 (Neutral). Goal: Balanced extraction; use as calibration for new grinders.</li>
+</ul>
+<h5>3. Roast Degree Compensation (Dynamic Offset)</h5>
+<ul>
+<li>Light Roast: Low solubility. Strategy: -0.5 to -1.0 click (Finer) to increase surface area.</li>
+<li>Dark Roast: High porosity and solubility. Strategy: +1.0 to +2.0 clicks (Coarser) to prevent burnt bitterness.</li>
+</ul>
+<h5>4. Post-Brew Feedback Loop (Troubleshooting)</h5>
+<ul>
+<li>Flow Rate: Draw-down too slow -> Suggest Coarser (+1). Too fast -> Suggest Finer (-1).</li>
+<li>Sensory: Astringent/Bitter -> Over-extracted -> Increase grind size. Sour/Thin -> Under-extracted -> Decrease grind size.</li>
+</ul>
+</div>
+</section>
+</section>
+<section id="tab-mybrews" class="tab-panel">
+<h2>My Brews</h2>
+<section class="card list-card">
+<div class="card-header">
+<h3>Saved brews</h3>
+<select id="home-brew-sort">
+<option value="date">Sort by date</option>
+<option value="score">Sort by score</option>
+<option value="machine">Sort by machine used</option>
+</select>
+</div>
+<ul id="home-brew-list" class="item-list"></ul>
+</section>
 </section>
 <section class="card list-card">
 <div class="card-header">
@@ -488,7 +505,9 @@
 </section>
 <section id="tab-machines" class="tab-panel">
 <h2>My machines</h2>
+<div class="gear-grid">
 <section class="card">
+<h3>Coffee machine</h3>
 <form id="machine-form" class="form-grid">
 <div class="field-group full-width">
 <label for="machine-name-setting">Machine name</label>
@@ -509,6 +528,25 @@
 </form>
 <ul id="machine-list" class="item-list"></ul>
 </section>
+<section class="card">
+<h3>Grinder model</h3>
+<form id="grinder-form" class="form-grid">
+<div class="field-group full-width">
+<label for="grinder-name-setting">Grinder model name</label>
+<input type="text" id="grinder-name-setting" placeholder="e.g. Niche Zero" required>
+</div>
+<div class="field-group full-width">
+<label for="grinder-photo-setting">Photo</label>
+<input type="file" id="grinder-photo-setting" accept="image/*">
+</div>
+<div class="form-actions full-width">
+<button type="submit" class="primary-button">Add grinder</button>
+<button type="button" id="clear-grinders" class="ghost-button">Clear grinders</button>
+</div>
+</form>
+<ul id="grinder-list" class="item-list"></ul>
+</section>
+</div>
 </section>
 <section id="tab-settings" class="tab-panel">
 <h2>Data</h2>

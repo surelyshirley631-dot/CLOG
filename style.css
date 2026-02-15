@@ -313,6 +313,12 @@ legend {
   width: 100%;
 }
 
+.gear-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
 .form-actions {
   display: flex;
   gap: 8px;
