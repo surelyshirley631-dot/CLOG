@@ -501,6 +501,23 @@ legend {
   color: rgba(93, 64, 55, 0.9);
 }
 
+.danger-zone {
+  margin-top: 6px;
+}
+
+.danger-zone summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--coffee-danger);
+  opacity: 0.85;
+}
+
+.danger-zone .danger-button {
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  opacity: 0.9;
+}
+
 .import-label {
   position: relative;
   overflow: hidden;
