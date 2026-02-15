@@ -413,25 +413,37 @@
 <input type="text" id="bean-name" required>
 </div>
 <div class="field-group">
-<label for="bean-roaster">Roaster</label>
-<input type="text" id="bean-roaster">
+<label for="bean-type">Bean type</label>
+<select id="bean-type">
+<option value="">Unknown</option>
+<option value="arabica">Arabica</option>
+<option value="robusta">Robusta</option>
+<option value="liberica">Liberica</option>
+<option value="excelsa">Excelsa</option>
+<option value="blend">Blend</option>
+</select>
 </div>
 <div class="field-group">
-<label for="bean-roast-date">Roast date</label>
-<input type="date" id="bean-roast-date">
+<label for="bean-roast-type">Roast type</label>
+<select id="bean-roast-type">
+<option value="">Unknown</option>
+<option value="light">Light</option>
+<option value="medium-light">Medium-light</option>
+<option value="medium">Medium</option>
+<option value="medium-dark">Medium-dark</option>
+<option value="dark">Dark</option>
+</select>
 </div>
 <div class="field-group">
 <label for="bean-open-date">Open date</label>
 <input type="date" id="bean-open-date">
 </div>
 <div class="field-group">
-<label for="bean-weight">Initial weight (g)</label>
-<input type="number" id="bean-weight" min="0" step="1">
-<small class="field-help">Set starting weight; brews auto-subtract dose.</small>
-</div>
-<div class="field-group">
 <label for="bean-notes">Notes</label>
-<textarea id="bean-notes" rows="2" placeholder="Origin, process, tasting notes"></textarea>
+<textarea id="bean-notes" rows="3" placeholder="Farm
+Altitude
+Variety
+Aroma"></textarea>
 </div>
 <div class="field-group full-width">
 <label for="bean-photo">Bean photo</label>

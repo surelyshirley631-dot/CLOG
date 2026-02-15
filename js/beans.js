@@ -52,10 +52,9 @@ export function bindBeansUi() {
   form.addEventListener("submit", event => {
     event.preventDefault();
     const nameInput = document.getElementById("bean-name");
-    const roasterInput = document.getElementById("bean-roaster");
-    const roastDateInput = document.getElementById("bean-roast-date");
+    const typeSelect = document.getElementById("bean-type");
+    const roastTypeSelect = document.getElementById("bean-roast-type");
     const openDateInput = document.getElementById("bean-open-date");
-    const weightInput = document.getElementById("bean-weight");
     const notesInput = document.getElementById("bean-notes");
     const photoInput = document.getElementById("bean-photo");
     if (!nameInput) return;
@@ -65,11 +64,9 @@ export function bindBeansUi() {
     const baseBean = {
       id: generateId(),
       name,
-      roaster: roasterInput ? roasterInput.value.trim() : "",
-      roastDate: roastDateInput ? roastDateInput.value : "",
+      beanType: typeSelect ? typeSelect.value : "",
+      roastType: roastTypeSelect ? roastTypeSelect.value : "",
       openDate: openDateInput ? openDateInput.value : "",
-      initialWeight: weightInput && weightInput.value ? Number(weightInput.value) : null,
-      remainingWeight: weightInput && weightInput.value ? Number(weightInput.value) : null,
       notes: notesInput ? notesInput.value.trim() : ""
     };
 
@@ -146,39 +143,17 @@ function renderBeans(list, beans) {
     const meta = document.createElement("div");
     meta.className = "item-meta";
     const parts = [];
-    if (bean.roaster) parts.push(bean.roaster);
-    if (bean.roastDate) parts.push(`Roasted ${bean.roastDate}`);
+    if (bean.beanType) parts.push(bean.beanType);
+    if (bean.roastType) parts.push(bean.roastType);
     if (bean.openDate) parts.push(`Opened ${bean.openDate}`);
     meta.textContent = parts.join(" • ");
     const tags = document.createElement("div");
     tags.className = "item-tags";
-    if (typeof bean.remainingWeight === "number") {
-      const t = document.createElement("span");
-      t.className = "tag tag-pill";
-      t.textContent = `${bean.remainingWeight.toFixed(0)} g left`;
-      tags.appendChild(t);
-    }
-    if (bean.initialWeight && typeof bean.remainingWeight === "number") {
-      const used = bean.initialWeight - bean.remainingWeight;
-      if (used > 0) {
-        const t = document.createElement("span");
-        t.className = "tag tag-soft";
-        t.textContent = `${used.toFixed(0)} g used`;
-        tags.appendChild(t);
-      }
-    }
     if (bean.notes) {
       const t = document.createElement("span");
       t.className = "tag tag-soft";
       t.textContent = bean.notes;
       tags.appendChild(t);
-    }
-    const freshnessInfo = classifyFreshness(bean.roastDate);
-    if (freshnessInfo.label) {
-      const fres = document.createElement("div");
-      fres.className = `bean-freshness ${freshnessInfo.className}`;
-      fres.textContent = freshnessInfo.label;
-      tags.appendChild(fres);
     }
     main.appendChild(title);
     main.appendChild(meta);
