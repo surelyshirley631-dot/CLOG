@@ -86,6 +86,22 @@ body {
   align-content: space-evenly;
 }
 
+.data-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 12px;
+  width: min(90%, 560px);
+  height: 42px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(93, 64, 55, 0.9), rgba(62, 39, 35, 0.9));
+  color: #fbe9e7;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 18px rgba(62, 39, 35, 0.35);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
 .home-card {
   border-radius: 18px;
   border: none;

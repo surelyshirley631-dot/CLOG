@@ -98,6 +98,7 @@ export function bindBrewsUi() {
     const tampSelect = document.getElementById("tamp-pressure");
     const waterTempInput = document.getElementById("water-temp");
     const waterPressureInput = document.getElementById("water-pressure");
+    const scoreSelect = document.getElementById("brew-score");
     const doseInput = document.getElementById("dose-grams");
     const yieldInput = document.getElementById("yield-grams");
     const extractionInput = document.getElementById("extraction-time");
@@ -121,7 +122,7 @@ export function bindBrewsUi() {
       grindSize: grindSizeInput ? grindSizeInput.value.trim() : "",
       tampPressure: tampSelect ? tampSelect.value : "",
       waterTemp: waterTempInput && waterTempInput.value ? Number(waterTempInput.value) : null,
-      waterPressure: waterPressureInput && waterPressureInput.value ? Number(waterPressureInput.value) : null,
+      waterPressure: waterPressureInput && waterPressureInput.value !== "" ? Number(waterPressureInput.value) : null,
       doseGrams: dose,
       yieldGrams,
       extractionTime: extractionInput && extractionInput.value ? Number(extractionInput.value) : null,
@@ -129,6 +130,7 @@ export function bindBrewsUi() {
       bitternessRating: bitternessSelect ? bitternessSelect.value : "",
       bodyRating: bodySelect ? bodySelect.value : "",
       aftertasteRating: aftertasteSelect ? aftertasteSelect.value : "",
+      score: scoreSelect && scoreSelect.value ? Number(scoreSelect.value) : null,
       notes: notesInput ? notesInput.value.trim() : "",
       ratioText: computeRatio(dose, yieldGrams)
     };
@@ -147,6 +149,7 @@ export function bindBrewsUi() {
     renderMachineOptions(machineSelect);
     renderGrinderOptions(grinderSelect);
     renderBrews(list, brews);
+    document.dispatchEvent(new CustomEvent("brews-updated", { detail: { brews } }));
 
     const tips = buildOptimizationTips(brew);
     tipsList.innerHTML = "";
@@ -167,9 +170,30 @@ export function bindBrewsUi() {
     if (!confirmed) return;
     saveBrews([]);
     renderBrews(list, []);
+    document.dispatchEvent(new CustomEvent("brews-updated", { detail: { brews: [] } }));
   });
 }
 
+export function bindHomeBrewsPreview() {
+  const sortSelect = document.getElementById("home-brew-sort");
+  const list = document.getElementById("home-brew-list");
+  if (!sortSelect || !list) return;
+  const apply = () => {
+    const brews = loadBrews().slice();
+    const criterion = sortSelect.value || "date";
+    if (criterion === "date") {
+      brews.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    } else if (criterion === "score") {
+      brews.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+    } else if (criterion === "machine") {
+      brews.sort((a, b) => String(a.coffeeMachine || "").localeCompare(String(b.coffeeMachine || "")));
+    }
+    renderBrews(list, brews);
+  };
+  sortSelect.addEventListener("change", apply);
+  apply();
+  document.addEventListener("brews-updated", apply);
+}
 export function refillLastBrewIfConfirmed() {
   const brews = loadBrews();
   if (!brews.length) return;
@@ -185,6 +209,7 @@ export function refillLastBrewIfConfirmed() {
   const tampSelect = document.getElementById("tamp-pressure");
   const waterTempInput = document.getElementById("water-temp");
   const waterPressureInput = document.getElementById("water-pressure");
+  const scoreSelect = document.getElementById("brew-score");
   const doseInput = document.getElementById("dose-grams");
   const yieldInput = document.getElementById("yield-grams");
   const extractionInput = document.getElementById("extraction-time");
@@ -209,6 +234,7 @@ export function refillLastBrewIfConfirmed() {
   if (bitternessSelect) bitternessSelect.value = last.bitternessRating || "";
   if (bodySelect) bodySelect.value = last.bodyRating || "";
   if (aftertasteSelect) aftertasteSelect.value = last.aftertasteRating || "";
+  if (scoreSelect) scoreSelect.value = last.score != null ? String(last.score) : "";
   if (notesInput) notesInput.value = last.notes || "";
 }
 

@@ -1,4 +1,5 @@
 import { bindBrewsUi, refillLastBrewIfConfirmed } from "./brews.js";
+import { bindHomeBrewsPreview } from "./brews.js";
 import { bindCafesUi } from "./cafes.js";
 import { bindBeansUi } from "./beans.js";
 import { bindGrindersUi } from "./grinders.js";
@@ -40,8 +41,8 @@ function setHeaderFor(targetId) {
     return;
   }
   if (targetId === "tab-settings") {
-    title.textContent = "Settings";
-    subtitle.textContent = "Data export, import, and reset";
+    title.textContent = "Data";
+    subtitle.textContent = "Export, import, and reset";
   }
 }
 
@@ -66,6 +67,7 @@ function showPanel(targetId) {
 function initNavigation() {
   const homeCards = Array.from(document.querySelectorAll(".home-card"));
   const title = document.getElementById("app-title");
+  const dataBtn = document.getElementById("data-button");
   homeCards.forEach(card => {
     card.addEventListener("click", () => {
       const targetId = card.getAttribute("data-target");
@@ -81,6 +83,11 @@ function initNavigation() {
   if (title) {
     title.addEventListener("click", () => {
       showPanel("home");
+    });
+  }
+  if (dataBtn) {
+    dataBtn.addEventListener("click", () => {
+      showPanel("tab-settings");
     });
   }
 }
@@ -140,6 +147,7 @@ function initApp() {
   bindGrindersUi();
   bindMachinesUi();
   bindBrewsUi();
+  bindHomeBrewsPreview();
   bindCafesUi();
   initSettings();
   showPanel("home");
