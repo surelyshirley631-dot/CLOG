@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLOG</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="app-shell">
+<header class="app-header">
+<h1 id="app-title">CLOG</h1>
+<p class="app-subtitle">Coffee log for brews, cafes, and beans</p>
+</header>
+<main class="app-main">
+<section id="home" class="tab-panel active">
+<div class="home-grid">
+<button class="home-card" data-target="tab-brew">
+<div class="home-icon-wrap">
+<svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
+<rect x="8" y="10" width="18" height="16" rx="3" ry="3"></rect>
+<rect x="26" y="15" width="6" height="6" rx="2" ry="2"></rect>
+<rect x="10" y="28" width="22" height="3" rx="1.5" ry="1.5"></rect>
+<circle cx="13" cy="15" r="2"></circle>
+</svg>
+</div>
+<div class="home-card-text">
+<span class="home-card-title">Brew</span>
+<span class="home-card-subtitle">Manual brew log and precision tracking</span>
+</div>
+</button>
+<button class="home-card" data-target="tab-explore">
+<div class="home-icon-wrap">
+<svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
+<rect x="8" y="15" width="24" height="14" rx="2" ry="2"></rect>
+<polygon points="8,16 20,9 32,16"></polygon>
+<rect x="13" y="20" width="5" height="9"></rect>
+<rect x="22" y="22" width="7" height="3" rx="1.5" ry="1.5"></rect>
+</svg>
+</div>
+<div class="home-card-text">
+<span class="home-card-title">Cafes</span>
+<span class="home-card-subtitle">Visited and wish-list coffee shops</span>
+</div>
+</button>
+<button class="home-card" data-target="tab-beans">
+<div class="home-icon-wrap">
+<svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
+<ellipse cx="16" cy="18" rx="6" ry="10"></ellipse>
+<ellipse cx="24" cy="22" rx="6" ry="10"></ellipse>
+<path d="M14 10 C12 16 18 20 16 26" ></path>
+<path d="M22 14 C20 20 26 22 24 28" ></path>
+</svg>
+</div>
+<div class="home-card-text">
+<span class="home-card-title">Beans</span>
+<span class="home-card-subtitle">Pantry, stock, and freshness</span>
+</div>
+</button>
+<button class="home-card" data-target="tab-settings">
+<div class="home-icon-wrap">
+<svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
+<rect x="10" y="9" width="18" height="22" rx="2" ry="2"></rect>
+<line x1="13" y1="14" x2="24" y2="14"></line>
+<line x1="13" y1="19" x2="22" y2="19"></line>
+<line x1="13" y1="24" x2="20" y2="24"></line>
+<polygon points="26,16 31,13 32,15 28,19"></polygon>
+</svg>
+</div>
+<div class="home-card-text">
+<span class="home-card-title">Settings</span>
+<span class="home-card-subtitle">Data, backup, and reset</span>
+</div>
+</button>
+</div>
+</section>
+<section id="tab-brew" class="tab-panel">
+<h2>Brew Log</h2>
+<form id="brew-form" class="card form-grid">
+<div class="field-group">
+<label for="brew-date">Brew date</label>
+<input type="date" id="brew-date" required>
+</div>
+<div class="field-group">
+<label for="brew-method">Brew method</label>
+<select id="brew-method">
+<option value="espresso">Espresso</option>
+<option value="pourover">Pour-over</option>
+<option value="immersion">Immersion</option>
+<option value="coldbrew">Cold brew</option>
+<option value="other">Other</option>
+</select>
+</div>
+<div class="field-group">
+<label for="brew-bean">Bean</label>
+<select id="brew-bean">
+<option value="">No bean selected</option>
+</select>
+<small class="field-help">Beans are managed in the Beans tab.</small>
+</div>
+<div class="field-group">
+<label for="grinder-model">Grinder model</label>
+<input type="text" id="grinder-model" placeholder="e.g. Niche Zero">
+</div>
+<div class="field-group">
+<label for="grind-size">Grind size</label>
+<input type="text" id="grind-size" placeholder="Numeric or descriptive">
+</div>
+<div class="field-group">
+<label for="tamp-pressure">Tamping pressure</label>
+<div class="inline-fields">
+<input type="number" id="tamp-pressure" min="0" step="0.5" placeholder="e.g. 15">
+<select id="tamp-unit">
+<option value="kg">kg</option>
+<option value="lbs">lbs</option>
+</select>
+</div>
+</div>
+<div class="field-group">
+<label for="water-temp">Water temperature (°C)</label>
+<input type="number" id="water-temp" min="0" max="100" step="0.5">
+</div>
+<div class="field-group">
+<label>Brew ratio (grounds vs. yield)</label>
+<div class="inline-fields">
+<div class="inline-field">
+<span>Dose (g)</span>
+<input type="number" id="dose-grams" min="0" step="0.1">
+</div>
+<div class="inline-field">
+<span>Yield (g)</span>
+<input type="number" id="yield-grams" min="0" step="0.1">
+</div>
+</div>
+</div>
+<div class="field-group">
+<label for="extraction-time">Total extraction time (s)</label>
+<input type="number" id="extraction-time" min="0" step="1">
+</div>
+<fieldset class="field-group">
+<legend>Flavor profile (1–5)</legend>
+<div class="ratings-grid">
+<div class="rating-field">
+<label for="acidity-rating">Acidity</label>
+<select id="acidity-rating">
+<option value="">Not rated</option>
+<option value="1">1</option>
+<option value="2">2</option>
+<option value="3">3</option>
+<option value="4">4</option>
+<option value="5">5</option>
+</select>
+</div>
+<div class="rating-field">
+<label for="bitterness-rating">Bitterness</label>
+<select id="bitterness-rating">
+<option value="">Not rated</option>
+<option value="1">1</option>
+<option value="2">2</option>
+<option value="3">3</option>
+<option value="4">4</option>
+<option value="5">5</option>
+</select>
+</div>
+<div class="rating-field">
+<label for="body-rating">Body</label>
+<select id="body-rating">
+<option value="">Not rated</option>
+<option value="1">1</option>
+<option value="2">2</option>
+<option value="3">3</option>
+<option value="4">4</option>
+<option value="5">5</option>
+</select>
+</div>
+<div class="rating-field">
+<label for="aftertaste-rating">Aftertaste</label>
+<select id="aftertaste-rating">
+<option value="">Not rated</option>
+<option value="1">1</option>
+<option value="2">2</option>
+<option value="3">3</option>
+<option value="4">4</option>
+<option value="5">5</option>
+</select>
+</div>
+</div>
+</fieldset>
+<div class="field-group full-width">
+<label for="brew-notes">Notes</label>
+<textarea id="brew-notes" rows="3" placeholder="Taste notes, adjustments, and observations"></textarea>
+</div>
+<div class="form-actions full-width">
+<button type="submit" class="primary-button">Save brew</button>
+</div>
+</form>
+<section class="card tips-card" id="brew-tips-card" hidden>
+<h3>Brew optimization tips</h3>
+<ul id="brew-tips-list"></ul>
+</section>
+<section class="card list-card">
+<div class="card-header">
+<h3>Recent brews</h3>
+<button type="button" id="clear-brews" class="ghost-button">Clear brews</button>
+</div>
+<ul id="brew-list" class="item-list"></ul>
+</section>
+</section>
+<section id="tab-explore" class="tab-panel">
+<h2>Explore Cafes</h2>
+<section class="card">
+<div class="field-group full-width">
+<label for="cafe-search">Search cafes</label>
+<input type="search" id="cafe-search" placeholder="Search by name, origin, or city">
+</div>
+</section>
+<form id="cafe-form" class="card form-grid">
+<div class="field-group">
+<label for="cafe-name">Cafe name</label>
+<input type="text" id="cafe-name" required>
+</div>
+<div class="field-group">
+<label for="cafe-status">List</label>
+<select id="cafe-status">
+<option value="visited">Visited</option>
+<option value="wishlist">Want to visit</option>
+</select>
+</div>
+<div class="field-group">
+<label for="cafe-location">Location</label>
+<input type="text" id="cafe-location" placeholder="City, country, or address">
+</div>
+<div class="field-group">
+<label for="cafe-equipment">Equipment</label>
+<input type="text" id="cafe-equipment" placeholder="Machine and grinder">
+</div>
+<div class="field-group">
+<label for="cafe-origin">Bean origin</label>
+<input type="text" id="cafe-origin" placeholder="e.g. Ethiopia, Colombia">
+</div>
+<div class="field-group">
+<label for="cafe-roast-style">Roasting style</label>
+<input type="text" id="cafe-roast-style" placeholder="Light, medium, dark">
+</div>
+<fieldset class="field-group full-width">
+<legend>Visit details</legend>
+<div class="inline-fields">
+<div class="inline-field">
+<span>Drink</span>
+<input type="text" id="visit-drink" placeholder="e.g. Oat flat white">
+</div>
+<div class="inline-field">
+<span>Rating (1–5)</span>
+<select id="visit-rating">
+<option value="">Not rated</option>
+<option value="1">1</option>
+<option value="2">2</option>
+<option value="3">3</option>
+<option value="4">4</option>
+<option value="5">5</option>
+</select>
+</div>
+<div class="inline-field">
+<span>Date</span>
+<input type="date" id="visit-date">
+</div>
+</div>
+<div class="field-group">
+<label for="visit-notes">Notes</label>
+<textarea id="visit-notes" rows="2" placeholder="Vibes, service, signature drinks"></textarea>
+</div>
+</fieldset>
+<div class="field-group full-width">
+<label for="cafe-photo">Cafe or cup photo</label>
+<input type="file" id="cafe-photo" accept="image/*">
+<small class="field-help">Photos are stored locally in your browser.</small>
+</div>
+<div class="form-actions full-width">
+<button type="submit" class="primary-button">Save cafe</button>
+</div>
+</form>
+<section class="card list-card">
+<div class="card-header">
+<h3>Cafes</h3>
+<button type="button" id="clear-cafes" class="ghost-button">Clear cafes</button>
+</div>
+<ul id="cafe-list" class="item-list"></ul>
+</section>
+</section>
+<section id="tab-beans" class="tab-panel">
+<h2>Beans Pantry</h2>
+<form id="bean-form" class="card form-grid">
+<div class="field-group">
+<label for="bean-name">Bean name</label>
+<input type="text" id="bean-name" required>
+</div>
+<div class="field-group">
+<label for="bean-roaster">Roaster</label>
+<input type="text" id="bean-roaster">
+</div>
+<div class="field-group">
+<label for="bean-roast-date">Roast date</label>
+<input type="date" id="bean-roast-date">
+</div>
+<div class="field-group">
+<label for="bean-open-date">Open date</label>
+<input type="date" id="bean-open-date">
+</div>
+<div class="field-group">
+<label for="bean-weight">Initial weight (g)</label>
+<input type="number" id="bean-weight" min="0" step="1">
+</div>
+<div class="field-group">
+<label for="bean-notes">Notes</label>
+<textarea id="bean-notes" rows="2" placeholder="Origin, process, tasting notes"></textarea>
+</div>
+<div class="form-actions full-width">
+<button type="submit" class="primary-button">Save beans</button>
+</div>
+</form>
+<section class="card list-card">
+<div class="card-header">
+<h3>Beans inventory</h3>
+<button type="button" id="clear-beans" class="ghost-button">Clear beans</button>
+</div>
+<ul id="bean-list" class="item-list"></ul>
+</section>
+</section>
+<section id="tab-settings" class="tab-panel">
+<h2>Settings</h2>
+<section class="card">
+<h3>Data</h3>
+<div class="settings-actions">
+<button type="button" id="export-data" class="secondary-button">Export data</button>
+<label class="import-label">
+<span class="secondary-button">Import data</span>
+<input type="file" id="import-data" accept="application/json">
+</label>
+</div>
+<button type="button" id="reset-data" class="danger-button">Reset all data</button>
+<p class="settings-hint">All data is stored locally in this browser.</p>
+</section>
+</section>
+</main>
+</div>
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>
