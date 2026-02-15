@@ -57,11 +57,12 @@ export function bindBeansUi() {
     const openDateInput = document.getElementById("bean-open-date");
     const weightInput = document.getElementById("bean-weight");
     const notesInput = document.getElementById("bean-notes");
+    const photoInput = document.getElementById("bean-photo");
     if (!nameInput) return;
     const name = nameInput.value.trim();
     if (!name) return;
     const beans = loadBeans();
-    const bean = {
+    const baseBean = {
       id: generateId(),
       name,
       roaster: roasterInput ? roasterInput.value.trim() : "",
@@ -71,11 +72,27 @@ export function bindBeansUi() {
       remainingWeight: weightInput && weightInput.value ? Number(weightInput.value) : null,
       notes: notesInput ? notesInput.value.trim() : ""
     };
-    beans.unshift(bean);
-    saveBeans(beans);
-    form.reset();
-    renderBeans(list, beans);
-    document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans } }));
+
+    const file = photoInput && photoInput.files ? photoInput.files[0] : null;
+
+    const finalize = photoDataUrl => {
+      const bean = photoDataUrl ? { ...baseBean, photoDataUrl } : baseBean;
+      beans.unshift(bean);
+      saveBeans(beans);
+      form.reset();
+      renderBeans(list, beans);
+      document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans } }));
+    };
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        finalize(typeof reader.result === "string" ? reader.result : "");
+      };
+      reader.readAsDataURL(file);
+    } else {
+      finalize("");
+    }
   });
 
   clearBtn.addEventListener("click", () => {
@@ -116,6 +133,13 @@ function renderBeans(list, beans) {
     li.className = "item";
     const main = document.createElement("div");
     main.className = "item-main";
+    if (bean.photoDataUrl) {
+      const thumbnail = document.createElement("img");
+      thumbnail.className = "bean-photo-thumb";
+      thumbnail.src = bean.photoDataUrl;
+      thumbnail.alt = bean.name || "Bean photo";
+      main.appendChild(thumbnail);
+    }
     const title = document.createElement("div");
     title.className = "item-title";
     title.textContent = bean.name;
@@ -163,4 +187,3 @@ function renderBeans(list, beans) {
     list.appendChild(li);
   });
 }
-

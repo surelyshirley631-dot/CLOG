@@ -475,6 +475,14 @@ legend {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
 }
 
+.bean-photo-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-small);
+  object-fit: cover;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
 .item-side {
   display: flex;
   flex-direction: column;
