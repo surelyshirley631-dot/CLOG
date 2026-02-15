@@ -1,0 +1,24 @@
+{
+  "name": "MyBrews",
+  "short_name": "MyBrews",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#d7c2b7",
+  "theme_color": "#8D6E63",
+  "categories": ["food-and-drink", "productivity"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 48 48'><rect width='48' height='48' rx='10' fill='%238D6E63'/><g fill='%23fff'><path d='M8 16h24v10c0 4.418-4.582 8-10 8H18c-5.418 0-10-3.582-10-8V16z'/><rect x='32' y='18' width='8' height='6' rx='3'/><rect x='10' y='32' width='20' height='3' rx='1.5'/></g></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%238D6E63'/><g fill='%23fff'><path d='M10 20h34v12c0 6-6 11-13 11H23c-7 0-13-5-13-11V20z'/><rect x='44' y='22' width='10' height='7' rx='3.5'/><rect x='14' y='44' width='26' height='4' rx='2'/></g></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

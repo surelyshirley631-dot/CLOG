@@ -173,10 +173,21 @@ function initApp() {
   bindCafesUi();
   initSettings();
   showPanel("home");
+  const splash = document.getElementById("splash");
+  if (splash) {
+    setTimeout(() => {
+      splash.style.opacity = "0";
+      splash.style.pointerEvents = "none";
+    }, 800);
+  }
 }
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initApp);
 } else {
   initApp();
+}
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
