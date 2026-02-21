@@ -133,7 +133,7 @@ body {
   gap: 14px;
   margin-bottom: 0;
   width: 100%;
-  align-content: space-evenly;
+  align-content: flex-start;
 }
 
 .data-bar {
