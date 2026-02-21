@@ -193,7 +193,9 @@ body {
 
 .home-card-wide {
   grid-column: 1 / -1;
-  padding: 8px 14px;
+  padding: 6px 18px;
+  border-radius: 999px;
+  justify-content: space-between;
 }
 
 .home-card:focus-visible {
