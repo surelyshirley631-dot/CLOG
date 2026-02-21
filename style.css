@@ -220,6 +220,11 @@ body {
   stroke-linejoin: round;
 }
 
+.home-icon-small {
+  width: 22px;
+  height: 22px;
+}
+
 .home-card-text {
   display: flex;
   flex-direction: column;
