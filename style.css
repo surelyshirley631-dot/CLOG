@@ -124,6 +124,7 @@ body {
   min-height: calc(100vh - 120px);
   display: flex;
   align-items: stretch;
+  padding-top: 12px;
 }
 
 .home-grid {
