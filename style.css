@@ -166,6 +166,22 @@ body {
   transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease;
 }
 
+.home-rules-bar {
+  border-radius: 999px;
+  border: none;
+  padding: 10px 18px;
+  background: radial-gradient(circle at top left, rgba(255, 224, 178, 0.8), rgba(239, 235, 233, 0.98));
+  color: var(--coffee-text-soft);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(93, 64, 55, 0.25);
+  transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease;
+  width: min(90%, 560px);
+  margin: 8px auto 64px;
+}
+
 .home-card-split {
   grid-column: 1 / -1;
   display: grid;
