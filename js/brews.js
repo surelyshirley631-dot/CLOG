@@ -71,6 +71,8 @@ export function bindBrewsUi() {
   const tipsList = document.getElementById("brew-tips-list");
   if (!form || !list || !clearBtn || !beanSelect || !machineSelect || !grinderSelect || !tipsCard || !tipsList) return;
 
+  let editingId = null;
+
   renderBeansOptions(beanSelect);
   renderMachineOptions(machineSelect);
   renderGrinderOptions(grinderSelect);
@@ -112,8 +114,8 @@ export function bindBrewsUi() {
     const dose = doseInput && doseInput.value ? Number(doseInput.value) : null;
     const yieldGrams = yieldInput && yieldInput.value ? Number(yieldInput.value) : null;
 
-    const brew = {
-      id: generateId(),
+    const brews = loadBrews();
+    const base = {
       date: dateInput.value || new Date().toISOString().slice(0, 10),
       method: methodInput.value,
       beanId: beanSelect.value || "",
@@ -135,15 +137,29 @@ export function bindBrewsUi() {
       ratioText: computeRatio(dose, yieldGrams)
     };
 
-    const brews = loadBrews();
-    brews.unshift(brew);
+    let brew;
+    if (editingId) {
+      const idx = brews.findIndex(b => b.id === editingId);
+      if (idx !== -1) {
+        const existing = brews[idx];
+        brew = { ...existing, ...base };
+        brews[idx] = brew;
+      } else {
+        brew = { id: generateId(), ...base };
+        brews.unshift(brew);
+      }
+    } else {
+      brew = { id: generateId(), ...base };
+      brews.unshift(brew);
+    }
     saveBrews(brews);
 
-    if (brew.beanId && brew.doseGrams) {
+    if (!editingId && brew.beanId && brew.doseGrams) {
       updateBeanStock(brew.beanId, brew.doseGrams);
       document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans: getBeans() } }));
     }
 
+    editingId = null;
     form.reset();
     renderBeansOptions(beanSelect);
     renderMachineOptions(machineSelect);
@@ -171,6 +187,54 @@ export function bindBrewsUi() {
     saveBrews([]);
     renderBrews(list, []);
     document.dispatchEvent(new CustomEvent("brews-updated", { detail: { brews: [] } }));
+  });
+
+  list.addEventListener("click", event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.classList.contains("brew-edit-button")) return;
+    const li = target.closest("li");
+    if (!li || !li.dataset.brewId) return;
+    const brews = loadBrews();
+    const brew = brews.find(b => b.id === li.dataset.brewId);
+    if (!brew) return;
+    editingId = brew.id;
+    const dateInput = document.getElementById("brew-date");
+    const methodInput = document.getElementById("brew-method");
+    const beanSelectEl = document.getElementById("brew-bean");
+    const machineInput = document.getElementById("brew-machine");
+    const grinderInput = document.getElementById("brew-grinder");
+    const grindSizeInput = document.getElementById("grind-size");
+    const tampSelect = document.getElementById("tamp-pressure");
+    const waterTempInput = document.getElementById("water-temp");
+    const waterPressureInput = document.getElementById("water-pressure");
+    const scoreSelect = document.getElementById("brew-score");
+    const doseInput = document.getElementById("dose-grams");
+    const yieldInput = document.getElementById("yield-grams");
+    const extractionInput = document.getElementById("extraction-time");
+    const aciditySelect = document.getElementById("acidity-rating");
+    const bitternessSelect = document.getElementById("bitterness-rating");
+    const bodySelect = document.getElementById("body-rating");
+    const aftertasteSelect = document.getElementById("aftertaste-rating");
+    const notesInput = document.getElementById("brew-notes");
+    if (dateInput) dateInput.value = brew.date || "";
+    if (methodInput) methodInput.value = brew.method || "espresso";
+    if (beanSelectEl) beanSelectEl.value = brew.beanId || "";
+    if (machineInput) machineInput.value = brew.coffeeMachine || "";
+    if (grinderInput) grinderInput.value = brew.grinderModel || "";
+    if (grindSizeInput) grindSizeInput.value = brew.grindSize || "";
+    if (tampSelect) tampSelect.value = brew.tampPressure || "";
+    if (waterTempInput) waterTempInput.value = brew.waterTemp != null ? String(brew.waterTemp) : "";
+    if (waterPressureInput) waterPressureInput.value = brew.waterPressure != null ? String(brew.waterPressure) : "";
+    if (doseInput) doseInput.value = brew.doseGrams != null ? String(brew.doseGrams) : "";
+    if (yieldInput) yieldInput.value = brew.yieldGrams != null ? String(brew.yieldGrams) : "";
+    if (extractionInput) extractionInput.value = brew.extractionTime != null ? String(brew.extractionTime) : "";
+    if (aciditySelect) aciditySelect.value = brew.acidityRating || "";
+    if (bitternessSelect) bitternessSelect.value = brew.bitternessRating || "";
+    if (bodySelect) bodySelect.value = brew.bodyRating || "";
+    if (aftertasteSelect) aftertasteSelect.value = brew.aftertasteRating || "";
+    if (scoreSelect) scoreSelect.value = brew.score != null ? String(brew.score) : "";
+    if (notesInput) notesInput.value = brew.notes || "";
   });
 }
 
@@ -276,10 +340,12 @@ function renderBrews(list, brews) {
   if (!brews.length) return;
 
   const beans = getBeans();
+  const isMainList = list.id === "brew-list";
 
   brews.forEach(brew => {
     const li = document.createElement("li");
     li.className = "item";
+    li.dataset.brewId = brew.id;
 
     const main = document.createElement("div");
     main.className = "item-main";
@@ -348,6 +414,18 @@ function renderBrews(list, brews) {
     main.appendChild(tags);
 
     li.appendChild(main);
+
+    if (isMainList) {
+      const side = document.createElement("div");
+      side.className = "item-side";
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "ghost-button small-button brew-edit-button";
+      editBtn.textContent = "Edit";
+      side.appendChild(editBtn);
+      li.appendChild(side);
+    }
+
     list.appendChild(li);
   });
 }

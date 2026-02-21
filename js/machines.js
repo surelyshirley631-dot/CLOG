@@ -54,8 +54,18 @@ function renderMachineList(list, machines) {
       meta.textContent = machine.notes;
       main.appendChild(meta);
     }
-    li.appendChild(main);
     li.dataset.machineId = machine.id;
+    li.appendChild(main);
+
+    const side = document.createElement("div");
+    side.className = "item-side";
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "ghost-button small-button machine-edit-button";
+    editBtn.textContent = "Edit";
+    side.appendChild(editBtn);
+    li.appendChild(side);
+
     list.appendChild(li);
   });
 }
@@ -130,7 +140,9 @@ export function bindMachinesUi() {
 
   list.addEventListener("click", event => {
     const target = event.target;
-    const li = target instanceof HTMLElement ? target.closest("li") : null;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.classList.contains("machine-edit-button")) return;
+    const li = target.closest("li");
     if (!li || !li.dataset.machineId) return;
     const machines = loadMachines();
     const machine = machines.find(m => m.id === li.dataset.machineId);
