@@ -75,6 +75,10 @@ function showPanel(targetId) {
   if (dataBtn) {
     dataBtn.style.display = targetId === "home" ? "block" : "none";
   }
+  const rulesBar = document.querySelector(".home-rules-bar");
+  if (rulesBar) {
+    rulesBar.style.display = targetId === "home" ? "flex" : "none";
+  }
 }
 
 function initNavigation() {
