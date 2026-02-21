@@ -124,7 +124,7 @@ body {
   min-height: calc(100vh - 120px);
   display: flex;
   align-items: stretch;
-  padding-top: 12px;
+  padding-top: 20px;
 }
 
 .home-grid {
@@ -155,7 +155,7 @@ body {
 .home-card {
   border-radius: 18px;
   border: none;
-  padding: 14px 12px;
+  padding: 10px 10px;
   background: radial-gradient(circle at top left, rgba(255, 224, 178, 0.8), rgba(239, 235, 233, 0.98));
   color: var(--coffee-text-soft);
   display: flex;
@@ -202,8 +202,8 @@ body {
 }
 
 .home-icon-wrap {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 14px;
   background: rgba(93, 64, 55, 0.05);
   display: flex;
@@ -234,13 +234,13 @@ body {
 }
 
 .home-card-title {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: #4e342e;
 }
 
 .home-card-subtitle {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: rgba(93, 64, 55, 0.85);
 }
 
