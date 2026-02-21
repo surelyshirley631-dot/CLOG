@@ -35,7 +35,7 @@ function setHeaderFor(targetId) {
     return;
   }
   if (targetId === "tab-grinders") {
-    title.textContent = "Grinder model";
+    title.textContent = "My grinders";
     subtitle.textContent = "Your grinders library";
     return;
   }
