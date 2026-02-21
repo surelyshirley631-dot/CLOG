@@ -116,7 +116,7 @@ body {
 
 .app-main {
   flex: 1;
-  padding: 16px 16px 24px;
+  padding: 16px 16px 80px;
   overflow-y: auto;
 }
 
@@ -221,8 +221,8 @@ body {
 }
 
 .home-icon-small {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 
 .home-card-text {
