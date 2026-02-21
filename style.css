@@ -170,7 +170,7 @@ body {
   border-radius: 999px;
   padding-inline: 18px;
   width: min(90%, 560px);
-  margin: 12px auto 64px;
+  margin: 4px auto 64px;
 }
 
 .home-card-split {
