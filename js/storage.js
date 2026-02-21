@@ -105,6 +105,7 @@ export function importAll(data) {
   if (data && Array.isArray(data.beans)) saveBeans(data.beans);
   if (data && Array.isArray(data.grinders)) saveGrinders(data.grinders);
   if (data && Array.isArray(data.machines)) saveMachines(data.machines);
+  saveMeta({ schemaVersion: CURRENT_SCHEMA_VERSION });
 }
 
 export function resetAll() {
