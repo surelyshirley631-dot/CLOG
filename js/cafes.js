@@ -20,58 +20,96 @@ export function bindCafesUi() {
   const clearBtn = document.getElementById("clear-cafes");
   if (!form || !list || !searchInput || !clearBtn) return;
 
+  const nameInput = document.getElementById("cafe-name");
+  const statusInput = document.getElementById("cafe-status");
+  const locationInput = document.getElementById("cafe-location");
+  const equipmentInput = document.getElementById("cafe-equipment");
+  const originInput = document.getElementById("cafe-origin");
+  const roastStyleInput = document.getElementById("cafe-roast-style");
+  const drinkInput = document.getElementById("visit-drink");
+  const ratingInput = document.getElementById("visit-rating");
+  const dateInput = document.getElementById("visit-date");
+  const notesInput = document.getElementById("visit-notes");
+  const photoInput = document.getElementById("cafe-photo");
+  if (!nameInput) return;
+
+  let editingId = null;
+
   form.addEventListener("submit", async event => {
     event.preventDefault();
-    const nameInput = document.getElementById("cafe-name");
-    if (!nameInput) return;
     const name = nameInput.value.trim();
     if (!name) return;
-    const statusInput = document.getElementById("cafe-status");
-    const locationInput = document.getElementById("cafe-location");
-    const equipmentInput = document.getElementById("cafe-equipment");
-    const originInput = document.getElementById("cafe-origin");
-    const roastStyleInput = document.getElementById("cafe-roast-style");
-    const drinkInput = document.getElementById("visit-drink");
-    const ratingInput = document.getElementById("visit-rating");
-    const dateInput = document.getElementById("visit-date");
-    const notesInput = document.getElementById("visit-notes");
-    const photoInput = document.getElementById("cafe-photo");
-
-    let photoData = "";
-    if (photoInput && photoInput.files && photoInput.files[0]) {
-      photoData = await readFileAsDataUrl(photoInput.files[0]);
-    }
-
     const cafes = loadCafes();
-    const cafe = {
-      id: generateId(),
-      name,
-      status: statusInput ? statusInput.value : "visited",
-      location: locationInput ? locationInput.value.trim() : "",
-      equipment: equipmentInput ? equipmentInput.value.trim() : "",
-      origin: originInput ? originInput.value.trim() : "",
-      roastStyle: roastStyleInput ? roastStyleInput.value.trim() : "",
-      visits: [],
-      photo: photoData || null
-    };
+    const status = statusInput ? statusInput.value : "visited";
+    const location = locationInput ? locationInput.value.trim() : "";
+    const equipment = equipmentInput ? equipmentInput.value.trim() : "";
+    const origin = originInput ? originInput.value.trim() : "";
+    const roastStyle = roastStyleInput ? roastStyleInput.value.trim() : "";
 
     const drink = drinkInput ? drinkInput.value.trim() : "";
     const ratingVal = ratingInput ? ratingInput.value : "";
     const dateVal = dateInput ? dateInput.value : "";
     const notes = notesInput ? notesInput.value.trim() : "";
 
-    if (drink || ratingVal || dateVal || notes) {
-      cafe.visits.push({
-        drink,
-        rating: ratingVal ? Number(ratingVal) : null,
-        date: dateVal || null,
-        notes
-      });
+    let photoData = "";
+    if (photoInput && photoInput.files && photoInput.files[0]) {
+      photoData = await readFileAsDataUrl(photoInput.files[0]);
     }
 
-    cafes.unshift(cafe);
+    if (editingId) {
+      const idx = cafes.findIndex(c => c.id === editingId);
+      if (idx !== -1) {
+        const existing = cafes[idx];
+        const visits = Array.isArray(existing.visits) ? [...existing.visits] : [];
+        if (drink || ratingVal || dateVal || notes) {
+          visits.unshift({
+            drink,
+            rating: ratingVal ? Number(ratingVal) : null,
+            date: dateVal || null,
+            notes
+          });
+        }
+        cafes[idx] = {
+          ...existing,
+          name,
+          status,
+          location,
+          equipment,
+          origin,
+          roastStyle,
+          visits,
+          photo: photoData || existing.photo || null
+        };
+      }
+    } else {
+      const cafe = {
+        id: generateId(),
+        name,
+        status,
+        location,
+        equipment,
+        origin,
+        roastStyle,
+        visits: [],
+        photo: photoData || null
+      };
+      if (drink || ratingVal || dateVal || notes) {
+        cafe.visits.push({
+          drink,
+          rating: ratingVal ? Number(ratingVal) : null,
+          date: dateVal || null,
+          notes
+        });
+      }
+      cafes.unshift(cafe);
+    }
+
     saveCafes(cafes);
+    editingId = null;
     form.reset();
+    if (photoInput) {
+      photoInput.value = "";
+    }
     renderCafes(list, cafes, searchInput.value);
   });
 
@@ -84,6 +122,29 @@ export function bindCafesUi() {
     if (!confirmed) return;
     saveCafes([]);
     renderCafes(list, [], searchInput.value);
+  });
+
+  list.addEventListener("click", event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.classList.contains("cafe-edit-button")) return;
+    const li = target.closest("li");
+    if (!li || !li.dataset.cafeId) return;
+    const cafes = loadCafes();
+    const cafe = cafes.find(c => c.id === li.dataset.cafeId);
+    if (!cafe) return;
+    editingId = cafe.id;
+    nameInput.value = cafe.name || "";
+    if (statusInput) statusInput.value = cafe.status || "visited";
+    if (locationInput) locationInput.value = cafe.location || "";
+    if (equipmentInput) equipmentInput.value = cafe.equipment || "";
+    if (originInput) originInput.value = cafe.origin || "";
+    if (roastStyleInput) roastStyleInput.value = cafe.roastStyle || "";
+    if (drinkInput) drinkInput.value = "";
+    if (ratingInput) ratingInput.value = "";
+    if (dateInput) dateInput.value = "";
+    if (notesInput) notesInput.value = "";
+    if (photoInput) photoInput.value = "";
   });
 
   renderCafes(list, loadCafes(), searchInput.value);
@@ -106,6 +167,7 @@ function renderCafes(list, cafes, query) {
   filtered.forEach(cafe => {
     const li = document.createElement("li");
     li.className = "item";
+    li.dataset.cafeId = cafe.id;
 
     const main = document.createElement("div");
     main.className = "item-main";
@@ -165,21 +227,22 @@ function renderCafes(list, cafes, query) {
 
     li.appendChild(main);
 
+    const side = document.createElement("div");
+    side.className = "item-side";
     if (cafe.photo) {
-      const side = document.createElement("div");
-      side.className = "item-side";
       const img = document.createElement("img");
       img.src = cafe.photo;
       img.alt = `Photo from ${cafe.name}`;
       img.className = "cafe-photo-thumb";
-      const label = document.createElement("span");
-      label.textContent = "Photo";
       side.appendChild(img);
-      side.appendChild(label);
-      li.appendChild(side);
     }
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "ghost-button small-button cafe-edit-button";
+    editBtn.textContent = "Edit";
+    side.appendChild(editBtn);
+    li.appendChild(side);
 
     list.appendChild(li);
   });
 }
-

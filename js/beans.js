@@ -49,34 +49,61 @@ export function bindBeansUi() {
   const clearBtn = document.getElementById("clear-beans");
   if (!form || !list || !clearBtn) return;
 
+  const nameInput = document.getElementById("bean-name");
+  const typeSelect = document.getElementById("bean-type");
+  const roastTypeSelect = document.getElementById("bean-roast-type");
+  const openDateInput = document.getElementById("bean-open-date");
+  const notesInput = document.getElementById("bean-notes");
+  const photoInput = document.getElementById("bean-photo");
+  if (!nameInput) return;
+
+  let editingId = null;
+
   form.addEventListener("submit", event => {
     event.preventDefault();
-    const nameInput = document.getElementById("bean-name");
-    const typeSelect = document.getElementById("bean-type");
-    const roastTypeSelect = document.getElementById("bean-roast-type");
-    const openDateInput = document.getElementById("bean-open-date");
-    const notesInput = document.getElementById("bean-notes");
-    const photoInput = document.getElementById("bean-photo");
-    if (!nameInput) return;
     const name = nameInput.value.trim();
     if (!name) return;
     const beans = loadBeans();
-    const baseBean = {
-      id: generateId(),
-      name,
-      beanType: typeSelect ? typeSelect.value : "",
-      roastType: roastTypeSelect ? roastTypeSelect.value : "",
-      openDate: openDateInput ? openDateInput.value : "",
-      notes: notesInput ? notesInput.value.trim() : ""
-    };
+    const beanType = typeSelect ? typeSelect.value : "";
+    const roastType = roastTypeSelect ? roastTypeSelect.value : "";
+    const openDate = openDateInput ? openDateInput.value : "";
+    const notes = notesInput ? notesInput.value.trim() : "";
 
     const file = photoInput && photoInput.files ? photoInput.files[0] : null;
 
     const finalize = photoDataUrl => {
-      const bean = photoDataUrl ? { ...baseBean, photoDataUrl } : baseBean;
-      beans.unshift(bean);
+      if (editingId) {
+        const idx = beans.findIndex(b => b.id === editingId);
+        if (idx !== -1) {
+          const existing = beans[idx];
+          beans[idx] = {
+            ...existing,
+            name,
+            beanType,
+            roastType,
+            openDate,
+            notes,
+            photoDataUrl: photoDataUrl || existing.photoDataUrl || ""
+          };
+        }
+      } else {
+        const bean = {
+          id: generateId(),
+          name,
+          beanType,
+          roastType,
+          openDate,
+          notes,
+          photoDataUrl: photoDataUrl || ""
+        };
+        beans.unshift(bean);
+      }
       saveBeans(beans);
+      editingId = null;
       form.reset();
+      if (photoInput) {
+        photoInput.value = "";
+      }
       renderBeans(list, beans);
       document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans } }));
     };
@@ -98,6 +125,24 @@ export function bindBeansUi() {
     saveBeans([]);
     renderBeans(list, []);
     document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans: [] } }));
+  });
+
+  list.addEventListener("click", event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.classList.contains("bean-edit-button")) return;
+    const li = target.closest("li");
+    if (!li || !li.dataset.beanId) return;
+    const beans = loadBeans();
+    const bean = beans.find(b => b.id === li.dataset.beanId);
+    if (!bean) return;
+    editingId = bean.id;
+    nameInput.value = bean.name || "";
+    if (typeSelect) typeSelect.value = bean.beanType || "";
+    if (roastTypeSelect) roastTypeSelect.value = bean.roastType || "";
+    if (openDateInput) openDateInput.value = bean.openDate || "";
+    if (notesInput) notesInput.value = bean.notes || "";
+    if (photoInput) photoInput.value = "";
   });
 
   renderBeans(list, loadBeans());
@@ -128,6 +173,7 @@ function renderBeans(list, beans) {
   beans.forEach(bean => {
     const li = document.createElement("li");
     li.className = "item";
+    li.dataset.beanId = bean.id;
     const main = document.createElement("div");
     main.className = "item-main";
     if (bean.photoDataUrl) {
@@ -159,6 +205,16 @@ function renderBeans(list, beans) {
     main.appendChild(meta);
     main.appendChild(tags);
     li.appendChild(main);
+
+    const actions = document.createElement("div");
+    actions.className = "item-side";
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "ghost-button small-button bean-edit-button";
+    editBtn.textContent = "Edit";
+    actions.appendChild(editBtn);
+    li.appendChild(actions);
+
     list.appendChild(li);
   });
 }

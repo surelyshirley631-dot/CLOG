@@ -417,6 +417,11 @@ legend {
   transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease, color 0.12s ease;
 }
 
+.small-button {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+}
+
 .primary-button {
   background: linear-gradient(135deg, var(--coffee-accent-strong), var(--coffee-accent));
   color: #3e2723;
