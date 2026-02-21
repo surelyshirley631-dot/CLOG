@@ -124,7 +124,7 @@ body {
   min-height: calc(100vh - 120px);
   display: flex;
   align-items: stretch;
-  padding-top: 20px;
+  padding-top: 24px;
 }
 
 .home-grid {
@@ -189,6 +189,11 @@ body {
 .split-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 26px rgba(93, 64, 55, 0.32);
+}
+
+.home-card-wide {
+  grid-column: 1 / -1;
+  padding: 8px 14px;
 }
 
 .home-card:focus-visible {
