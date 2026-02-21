@@ -170,7 +170,7 @@ body {
   border-radius: 999px;
   padding-inline: 18px;
   width: min(90%, 560px);
-  margin: 26px auto 64px;
+  margin: 14px auto 64px;
 }
 
 .home-card-split {
@@ -653,6 +653,10 @@ legend {
     height: auto;
     align-content: flex-start;
     row-gap: 26px;
+  }
+
+  .home-rules-bar {
+    margin: 26px auto 64px;
   }
 
   .home-card {
