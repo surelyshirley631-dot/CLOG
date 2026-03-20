@@ -43,6 +43,57 @@ export function updateBeanStock(beanId, deltaGrams) {
   saveBeans(beans);
 }
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(typeof reader.result === "string" ? reader.result : "");
+    };
+    reader.onerror = () => {
+      reject(new Error("Failed to read file"));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to load image"));
+    image.src = src;
+  });
+}
+
+async function toOptimizedPhotoDataUrl(file) {
+  const original = await readFileAsDataUrl(file);
+  const image = await loadImage(original);
+  const maxEdge = 1280;
+  const longestEdge = Math.max(image.width, image.height);
+  const scale = longestEdge > maxEdge ? maxEdge / longestEdge : 1;
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return original;
+  }
+  ctx.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
+function trySaveBeans(beans) {
+  try {
+    saveBeans(beans);
+    return true;
+  } catch {
+    window.alert("保存失败：图片过大，请换一张更小的图片后重试。");
+    return false;
+  }
+}
+
 export function bindBeansUi() {
   const form = document.getElementById("bean-form");
   const list = document.getElementById("bean-list");
@@ -59,7 +110,7 @@ export function bindBeansUi() {
 
   let editingId = null;
 
-  form.addEventListener("submit", event => {
+  form.addEventListener("submit", async event => {
     event.preventDefault();
     const name = nameInput.value.trim();
     if (!name) return;
@@ -70,53 +121,53 @@ export function bindBeansUi() {
     const notes = notesInput ? notesInput.value.trim() : "";
 
     const file = photoInput && photoInput.files ? photoInput.files[0] : null;
+    let photoDataUrl = "";
+    if (file) {
+      try {
+        photoDataUrl = await toOptimizedPhotoDataUrl(file);
+      } catch {
+        window.alert("图片读取失败，请重新选择图片。");
+        return;
+      }
+    }
 
-    const finalize = photoDataUrl => {
-      if (editingId) {
-        const idx = beans.findIndex(b => b.id === editingId);
-        if (idx !== -1) {
-          const existing = beans[idx];
-          beans[idx] = {
-            ...existing,
-            name,
-            beanType,
-            roastType,
-            openDate,
-            notes,
-            photoDataUrl: photoDataUrl || existing.photoDataUrl || ""
-          };
-        }
-      } else {
-        const bean = {
-          id: generateId(),
+    if (editingId) {
+      const idx = beans.findIndex(b => b.id === editingId);
+      if (idx !== -1) {
+        const existing = beans[idx];
+        beans[idx] = {
+          ...existing,
           name,
           beanType,
           roastType,
           openDate,
           notes,
-          photoDataUrl: photoDataUrl || ""
+          photoDataUrl: photoDataUrl || existing.photoDataUrl || ""
         };
-        beans.unshift(bean);
       }
-      saveBeans(beans);
-      editingId = null;
-      form.reset();
-      if (photoInput) {
-        photoInput.value = "";
-      }
-      renderBeans(list, beans);
-      document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans } }));
-    };
-
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        finalize(typeof reader.result === "string" ? reader.result : "");
-      };
-      reader.readAsDataURL(file);
     } else {
-      finalize("");
+      const bean = {
+        id: generateId(),
+        name,
+        beanType,
+        roastType,
+        openDate,
+        notes,
+        photoDataUrl: photoDataUrl || ""
+      };
+      beans.unshift(bean);
     }
+
+    if (!trySaveBeans(beans)) {
+      return;
+    }
+    editingId = null;
+    form.reset();
+    if (photoInput) {
+      photoInput.value = "";
+    }
+    renderBeans(list, beans);
+    document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans } }));
   });
 
   clearBtn.addEventListener("click", () => {

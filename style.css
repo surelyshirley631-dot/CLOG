@@ -505,6 +505,11 @@ legend {
   color: rgba(93, 64, 55, 0.9);
 }
 
+.brew-score-inline {
+  font-weight: 700;
+  color: #3e2723;
+}
+
 .item-tags {
   display: flex;
   flex-wrap: wrap;

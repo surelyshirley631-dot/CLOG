@@ -115,6 +115,12 @@ function initNavigation() {
       showPanel("tab-settings");
     });
   }
+  document.addEventListener("open-panel", event => {
+    const detail = event instanceof CustomEvent ? event.detail : null;
+    const targetId = detail && detail.targetId ? detail.targetId : "";
+    if (!targetId) return;
+    showPanel(targetId);
+  });
 }
 
 function initSettings() {

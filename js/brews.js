@@ -60,6 +60,45 @@ function buildOptimizationTips(brew) {
   return tips;
 }
 
+function fillBrewFormValues(brew) {
+  const dateInput = document.getElementById("brew-date");
+  const methodInput = document.getElementById("brew-method");
+  const beanSelect = document.getElementById("brew-bean");
+  const machineInput = document.getElementById("brew-machine");
+  const grinderInput = document.getElementById("brew-grinder");
+  const grindSizeInput = document.getElementById("grind-size");
+  const tampSelect = document.getElementById("tamp-pressure");
+  const waterTempInput = document.getElementById("water-temp");
+  const waterPressureInput = document.getElementById("water-pressure");
+  const scoreSelect = document.getElementById("brew-score");
+  const doseInput = document.getElementById("dose-grams");
+  const yieldInput = document.getElementById("yield-grams");
+  const extractionInput = document.getElementById("extraction-time");
+  const aciditySelect = document.getElementById("acidity-rating");
+  const bitternessSelect = document.getElementById("bitterness-rating");
+  const bodySelect = document.getElementById("body-rating");
+  const aftertasteSelect = document.getElementById("aftertaste-rating");
+  const notesInput = document.getElementById("brew-notes");
+  if (dateInput) dateInput.value = brew.date || "";
+  if (methodInput) methodInput.value = brew.method || "espresso";
+  if (beanSelect) beanSelect.value = brew.beanId || "";
+  if (machineInput) machineInput.value = brew.coffeeMachine || "";
+  if (grinderInput) grinderInput.value = brew.grinderModel || "";
+  if (grindSizeInput) grindSizeInput.value = brew.grindSize || "";
+  if (tampSelect) tampSelect.value = brew.tampPressure || "";
+  if (waterTempInput) waterTempInput.value = brew.waterTemp != null ? String(brew.waterTemp) : "";
+  if (waterPressureInput) waterPressureInput.value = brew.waterPressure != null ? String(brew.waterPressure) : "";
+  if (doseInput) doseInput.value = brew.doseGrams != null ? String(brew.doseGrams) : "";
+  if (yieldInput) yieldInput.value = brew.yieldGrams != null ? String(brew.yieldGrams) : "";
+  if (extractionInput) extractionInput.value = brew.extractionTime != null ? String(brew.extractionTime) : "";
+  if (aciditySelect) aciditySelect.value = brew.acidityRating || "";
+  if (bitternessSelect) bitternessSelect.value = brew.bitternessRating || "";
+  if (bodySelect) bodySelect.value = brew.bodyRating || "";
+  if (aftertasteSelect) aftertasteSelect.value = brew.aftertasteRating || "";
+  if (scoreSelect) scoreSelect.value = brew.score != null ? String(brew.score) : "";
+  if (notesInput) notesInput.value = brew.notes || "";
+}
+
 export function bindBrewsUi() {
   const form = document.getElementById("brew-form");
   const list = document.getElementById("brew-list");
@@ -88,6 +127,17 @@ export function bindBrewsUi() {
 
   document.addEventListener("machines-updated", () => {
     renderMachineOptions(machineSelect);
+  });
+
+  document.addEventListener("brew-open-request", event => {
+    const detail = event instanceof CustomEvent ? event.detail : null;
+    const brewId = detail && detail.brewId ? detail.brewId : "";
+    if (!brewId) return;
+    const brews = loadBrews();
+    const brew = brews.find(b => b.id === brewId);
+    if (!brew) return;
+    editingId = brew.id;
+    fillBrewFormValues(brew);
   });
 
   form.addEventListener("submit", event => {
@@ -199,42 +249,7 @@ export function bindBrewsUi() {
     const brew = brews.find(b => b.id === li.dataset.brewId);
     if (!brew) return;
     editingId = brew.id;
-    const dateInput = document.getElementById("brew-date");
-    const methodInput = document.getElementById("brew-method");
-    const beanSelectEl = document.getElementById("brew-bean");
-    const machineInput = document.getElementById("brew-machine");
-    const grinderInput = document.getElementById("brew-grinder");
-    const grindSizeInput = document.getElementById("grind-size");
-    const tampSelect = document.getElementById("tamp-pressure");
-    const waterTempInput = document.getElementById("water-temp");
-    const waterPressureInput = document.getElementById("water-pressure");
-    const scoreSelect = document.getElementById("brew-score");
-    const doseInput = document.getElementById("dose-grams");
-    const yieldInput = document.getElementById("yield-grams");
-    const extractionInput = document.getElementById("extraction-time");
-    const aciditySelect = document.getElementById("acidity-rating");
-    const bitternessSelect = document.getElementById("bitterness-rating");
-    const bodySelect = document.getElementById("body-rating");
-    const aftertasteSelect = document.getElementById("aftertaste-rating");
-    const notesInput = document.getElementById("brew-notes");
-    if (dateInput) dateInput.value = brew.date || "";
-    if (methodInput) methodInput.value = brew.method || "espresso";
-    if (beanSelectEl) beanSelectEl.value = brew.beanId || "";
-    if (machineInput) machineInput.value = brew.coffeeMachine || "";
-    if (grinderInput) grinderInput.value = brew.grinderModel || "";
-    if (grindSizeInput) grindSizeInput.value = brew.grindSize || "";
-    if (tampSelect) tampSelect.value = brew.tampPressure || "";
-    if (waterTempInput) waterTempInput.value = brew.waterTemp != null ? String(brew.waterTemp) : "";
-    if (waterPressureInput) waterPressureInput.value = brew.waterPressure != null ? String(brew.waterPressure) : "";
-    if (doseInput) doseInput.value = brew.doseGrams != null ? String(brew.doseGrams) : "";
-    if (yieldInput) yieldInput.value = brew.yieldGrams != null ? String(brew.yieldGrams) : "";
-    if (extractionInput) extractionInput.value = brew.extractionTime != null ? String(brew.extractionTime) : "";
-    if (aciditySelect) aciditySelect.value = brew.acidityRating || "";
-    if (bitternessSelect) bitternessSelect.value = brew.bitternessRating || "";
-    if (bodySelect) bodySelect.value = brew.bodyRating || "";
-    if (aftertasteSelect) aftertasteSelect.value = brew.aftertasteRating || "";
-    if (scoreSelect) scoreSelect.value = brew.score != null ? String(brew.score) : "";
-    if (notesInput) notesInput.value = brew.notes || "";
+    fillBrewFormValues(brew);
   });
 }
 
@@ -271,6 +286,15 @@ export function bindHomeBrewsPreview() {
     });
   });
   dirSelect.addEventListener("change", apply);
+  list.addEventListener("click", event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const li = target.closest("li");
+    if (!li || !li.dataset.brewId) return;
+    if (!target.classList.contains("brew-view-button")) return;
+    document.dispatchEvent(new CustomEvent("open-panel", { detail: { targetId: "tab-brew" } }));
+    document.dispatchEvent(new CustomEvent("brew-open-request", { detail: { brewId: li.dataset.brewId } }));
+  });
   apply();
   document.addEventListener("brews-updated", apply);
 }
@@ -341,6 +365,7 @@ function renderBrews(list, brews) {
 
   const beans = getBeans();
   const isMainList = list.id === "brew-list";
+  const isHomeList = list.id === "home-brew-list";
 
   brews.forEach(brew => {
     const li = document.createElement("li");
@@ -373,7 +398,24 @@ function renderBrews(list, brews) {
     if (typeof brew.waterPressure === "number") {
       pieces.push(`${brew.waterPressure.toFixed(1)} bar`);
     }
-    meta.textContent = pieces.join(" • ");
+    pieces.forEach((piece, index) => {
+      if (index > 0) {
+        meta.append(" • ");
+      }
+      const span = document.createElement("span");
+      span.textContent = piece;
+      meta.appendChild(span);
+    });
+    const score = toNumber(brew.score);
+    if (score !== null) {
+      if (pieces.length) {
+        meta.append(" • ");
+      }
+      const strong = document.createElement("strong");
+      strong.className = "brew-score-inline";
+      strong.textContent = `Score ${score}/10`;
+      meta.appendChild(strong);
+    }
 
     const tags = document.createElement("div");
     tags.className = "item-tags";
@@ -415,14 +457,14 @@ function renderBrews(list, brews) {
 
     li.appendChild(main);
 
-    if (isMainList) {
+    if (isMainList || isHomeList) {
       const side = document.createElement("div");
       side.className = "item-side";
-      const editBtn = document.createElement("button");
-      editBtn.type = "button";
-      editBtn.className = "ghost-button small-button brew-edit-button";
-      editBtn.textContent = "Edit";
-      side.appendChild(editBtn);
+      const actionBtn = document.createElement("button");
+      actionBtn.type = "button";
+      actionBtn.className = `ghost-button small-button ${isMainList ? "brew-edit-button" : "brew-view-button"}`;
+      actionBtn.textContent = isMainList ? "Edit" : "View";
+      side.appendChild(actionBtn);
       li.appendChild(side);
     }
 
