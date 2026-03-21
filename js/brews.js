@@ -167,17 +167,10 @@ function renderBrewDetails(container, brew) {
   container.appendChild(grid);
 }
 
-function ensureDetailPanel(list) {
-  const parent = list.parentElement;
-  if (!parent) return null;
-  let panel = document.getElementById("mybrew-detail-panel");
-  if (!panel) {
-    panel = document.createElement("section");
-    panel.id = "mybrew-detail-panel";
-    panel.className = "card brew-detail-card";
-    panel.hidden = true;
-    parent.appendChild(panel);
-  }
+function buildInlineDetail(brew) {
+  const panel = document.createElement("div");
+  panel.className = "brew-inline-detail";
+  renderBrewDetails(panel, brew);
   return panel;
 }
 
@@ -329,7 +322,6 @@ export function bindHomeBrewsPreview() {
   const dirSelect = document.getElementById("brew-sort-direction");
   const list = document.getElementById("home-brew-list");
   if (!controls || !dirSelect || !list) return;
-  const detailPanel = ensureDetailPanel(list);
   let detailId = "";
   let criterion = "date";
   const setActive = () => {
@@ -350,17 +342,6 @@ export function bindHomeBrewsPreview() {
       brews.sort((a, b) => mul * String(a.coffeeMachine || "").localeCompare(String(b.coffeeMachine || "")));
     }
     renderBrews(list, brews, detailId);
-    if (detailPanel && detailId) {
-      const selected = brews.find(b => b.id === detailId);
-      if (selected) {
-        renderBrewDetails(detailPanel, selected);
-        detailPanel.hidden = false;
-      } else {
-        detailPanel.hidden = true;
-      }
-    } else if (detailPanel) {
-      detailPanel.hidden = true;
-    }
     setActive();
   };
   controls.querySelectorAll("[data-sort]").forEach(btn => {
@@ -382,9 +363,6 @@ export function bindHomeBrewsPreview() {
       apply();
       return;
     }
-    const brews = loadBrews();
-    const brew = brews.find(b => b.id === brewId);
-    if (!brew || !detailPanel) return;
     detailId = brewId;
     apply();
   });
@@ -551,6 +529,10 @@ function renderBrews(list, brews, selectedDetailId = "") {
         side.appendChild(scoreLabel);
       }
       li.appendChild(side);
+    }
+
+    if (isHomeList && selectedDetailId === brew.id) {
+      li.appendChild(buildInlineDetail(brew));
     }
 
     list.appendChild(li);

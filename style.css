@@ -652,6 +652,12 @@ legend {
   margin-top: 12px;
 }
 
+.brew-inline-detail {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(93, 64, 55, 0.16);
+}
+
 .brew-detail-title {
   font-size: 1rem;
   font-weight: 700;
