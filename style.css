@@ -643,7 +643,7 @@ legend {
   gap: 4px;
 }
 
-.item-side span {
+.item-side span:not(.brew-side-score) {
   font-size: 0.7rem;
   color: rgba(93, 64, 55, 0.85);
 }

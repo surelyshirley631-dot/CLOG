@@ -540,7 +540,7 @@ function renderBrews(list, brews, selectedDetailId = "") {
       if (isMainList) {
         actionBtn.textContent = "Edit";
       } else {
-        actionBtn.textContent = selectedDetailId === brew.id ? "收回" : "View";
+        actionBtn.textContent = selectedDetailId === brew.id ? "Hide" : "View";
       }
       side.appendChild(actionBtn);
       const score = toNumber(brew.score);
