@@ -150,12 +150,18 @@ function initSettings() {
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          const parsed = JSON.parse(String(reader.result || "{}"));
-          importAll(parsed);
-          window.alert("Data imported. Reloading to apply changes.");
+          const raw = String(reader.result || "");
+          const cleaned = raw.replace(/^\uFEFF/, "").trim();
+          const parsed = JSON.parse(cleaned || "{}");
+          const result = importAll(parsed);
+          if (result && result.mediaStripped) {
+            window.alert("Data imported. Some photos were removed to fit iOS storage limits. Reloading now.");
+          } else {
+            window.alert("Data imported. Reloading to apply changes.");
+          }
           window.location.reload();
         } catch {
-          window.alert("Could not import data. Please check the file format.");
+          window.alert("Import failed. Please use a CLOG export JSON, or remove large photos and try again.");
         }
       };
       reader.readAsText(file);
@@ -199,5 +205,31 @@ if (document.readyState === "loading") {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js").catch(() => {});
+  let didReload = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (didReload) return;
+    didReload = true;
+    window.location.reload();
+  });
+
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then(registration => {
+        registration.update();
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+        registration.addEventListener("updatefound", () => {
+          const installing = registration.installing;
+          if (!installing) return;
+          installing.addEventListener("statechange", () => {
+            if (installing.state !== "installed") return;
+            if (!navigator.serviceWorker.controller) return;
+            installing.postMessage({ type: "SKIP_WAITING" });
+          });
+        });
+      })
+      .catch(() => {});
+  });
 }
