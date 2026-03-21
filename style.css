@@ -506,9 +506,9 @@ legend {
 }
 
 .brew-side-score {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #3e2723;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #000;
 }
 
 .item-tags {

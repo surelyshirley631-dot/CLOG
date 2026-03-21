@@ -349,7 +349,7 @@ export function bindHomeBrewsPreview() {
     } else if (criterion === "machine") {
       brews.sort((a, b) => mul * String(a.coffeeMachine || "").localeCompare(String(b.coffeeMachine || "")));
     }
-    renderBrews(list, brews);
+    renderBrews(list, brews, detailId);
     if (detailPanel && detailId) {
       const selected = brews.find(b => b.id === detailId);
       if (selected) {
@@ -358,6 +358,8 @@ export function bindHomeBrewsPreview() {
       } else {
         detailPanel.hidden = true;
       }
+    } else if (detailPanel) {
+      detailPanel.hidden = true;
     }
     setActive();
   };
@@ -375,12 +377,16 @@ export function bindHomeBrewsPreview() {
     if (!li || !li.dataset.brewId) return;
     if (!target.classList.contains("brew-view-button")) return;
     const brewId = li.dataset.brewId;
+    if (detailId === brewId) {
+      detailId = "";
+      apply();
+      return;
+    }
     const brews = loadBrews();
     const brew = brews.find(b => b.id === brewId);
     if (!brew || !detailPanel) return;
     detailId = brewId;
-    renderBrewDetails(detailPanel, brew);
-    detailPanel.hidden = false;
+    apply();
   });
   apply();
   document.addEventListener("brews-updated", apply);
@@ -438,7 +444,7 @@ function buildFlavorSummary(brew) {
   return parts.join(" • ");
 }
 
-function renderBrews(list, brews) {
+function renderBrews(list, brews, selectedDetailId = "") {
   list.innerHTML = "";
   if (!brews.length) return;
 
@@ -531,13 +537,17 @@ function renderBrews(list, brews) {
       const actionBtn = document.createElement("button");
       actionBtn.type = "button";
       actionBtn.className = `ghost-button small-button ${isMainList ? "brew-edit-button" : "brew-view-button"}`;
-      actionBtn.textContent = isMainList ? "Edit" : "View";
+      if (isMainList) {
+        actionBtn.textContent = "Edit";
+      } else {
+        actionBtn.textContent = selectedDetailId === brew.id ? "收回" : "View";
+      }
       side.appendChild(actionBtn);
       const score = toNumber(brew.score);
       if (score !== null) {
         const scoreLabel = document.createElement("span");
         scoreLabel.className = "brew-side-score";
-        scoreLabel.textContent = `Score ${score}/10`;
+        scoreLabel.textContent = String(score);
         side.appendChild(scoreLabel);
       }
       li.appendChild(side);
