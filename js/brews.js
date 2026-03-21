@@ -99,6 +99,88 @@ function fillBrewFormValues(brew) {
   if (notesInput) notesInput.value = brew.notes || "";
 }
 
+function displayValue(value, suffix = "") {
+  if (value === undefined || value === null || value === "") return "—";
+  return `${value}${suffix}`;
+}
+
+function methodLabel(method) {
+  if (method === "espresso") return "Espresso";
+  if (method === "pourover") return "Pour-over";
+  if (method === "immersion") return "Immersion";
+  if (method === "coldbrew") return "Cold brew";
+  return "Other";
+}
+
+function detailEntries(brew, beanName) {
+  return [
+    ["Bean", beanName || "No bean linked"],
+    ["Method", methodLabel(brew.method)],
+    ["Date", displayValue(brew.date)],
+    ["Machine", displayValue(brew.coffeeMachine)],
+    ["Grinder", displayValue(brew.grinderModel)],
+    ["Grind size", displayValue(brew.grindSize)],
+    ["Tamp pressure", displayValue(brew.tampPressure)],
+    ["Water temp", displayValue(brew.waterTemp, " °C")],
+    ["Water pressure", displayValue(brew.waterPressure, " bar")],
+    ["Dose", displayValue(brew.doseGrams, " g")],
+    ["Yield", displayValue(brew.yieldGrams, " g")],
+    ["Ratio", displayValue(brew.ratioText || computeRatio(brew.doseGrams, brew.yieldGrams))],
+    ["Extraction", displayValue(brew.extractionTime, " s")],
+    ["Score", displayValue(brew.score, "/10")],
+    ["Acidity", displayValue(brew.acidityRating, "/5")],
+    ["Bitterness", displayValue(brew.bitternessRating, "/5")],
+    ["Body", displayValue(brew.bodyRating, "/5")],
+    ["Aftertaste", displayValue(brew.aftertasteRating, "/5")],
+    ["Notes", displayValue(brew.notes)]
+  ];
+}
+
+function renderBrewDetails(container, brew) {
+  const beans = getBeans();
+  const bean = beans.find(b => b.id === brew.beanId);
+  const beanName = bean ? bean.name : "No bean linked";
+  container.innerHTML = "";
+
+  const title = document.createElement("div");
+  title.className = "brew-detail-title";
+  title.textContent = `${beanName} • ${methodLabel(brew.method)}`;
+
+  const grid = document.createElement("div");
+  grid.className = "brew-detail-grid";
+
+  detailEntries(brew, beanName).forEach(([label, value]) => {
+    const row = document.createElement("div");
+    row.className = "brew-detail-row";
+    const labelEl = document.createElement("span");
+    labelEl.className = "brew-detail-label";
+    labelEl.textContent = label;
+    const valueEl = document.createElement("span");
+    valueEl.className = "brew-detail-value";
+    valueEl.textContent = value;
+    row.appendChild(labelEl);
+    row.appendChild(valueEl);
+    grid.appendChild(row);
+  });
+
+  container.appendChild(title);
+  container.appendChild(grid);
+}
+
+function ensureDetailPanel(list) {
+  const parent = list.parentElement;
+  if (!parent) return null;
+  let panel = document.getElementById("mybrew-detail-panel");
+  if (!panel) {
+    panel = document.createElement("section");
+    panel.id = "mybrew-detail-panel";
+    panel.className = "card brew-detail-card";
+    panel.hidden = true;
+    parent.appendChild(panel);
+  }
+  return panel;
+}
+
 export function bindBrewsUi() {
   const form = document.getElementById("brew-form");
   const list = document.getElementById("brew-list");
@@ -127,17 +209,6 @@ export function bindBrewsUi() {
 
   document.addEventListener("machines-updated", () => {
     renderMachineOptions(machineSelect);
-  });
-
-  document.addEventListener("brew-open-request", event => {
-    const detail = event instanceof CustomEvent ? event.detail : null;
-    const brewId = detail && detail.brewId ? detail.brewId : "";
-    if (!brewId) return;
-    const brews = loadBrews();
-    const brew = brews.find(b => b.id === brewId);
-    if (!brew) return;
-    editingId = brew.id;
-    fillBrewFormValues(brew);
   });
 
   form.addEventListener("submit", event => {
@@ -258,6 +329,8 @@ export function bindHomeBrewsPreview() {
   const dirSelect = document.getElementById("brew-sort-direction");
   const list = document.getElementById("home-brew-list");
   if (!controls || !dirSelect || !list) return;
+  const detailPanel = ensureDetailPanel(list);
+  let detailId = "";
   let criterion = "date";
   const setActive = () => {
     controls.querySelectorAll("[data-sort]").forEach(btn => {
@@ -277,6 +350,15 @@ export function bindHomeBrewsPreview() {
       brews.sort((a, b) => mul * String(a.coffeeMachine || "").localeCompare(String(b.coffeeMachine || "")));
     }
     renderBrews(list, brews);
+    if (detailPanel && detailId) {
+      const selected = brews.find(b => b.id === detailId);
+      if (selected) {
+        renderBrewDetails(detailPanel, selected);
+        detailPanel.hidden = false;
+      } else {
+        detailPanel.hidden = true;
+      }
+    }
     setActive();
   };
   controls.querySelectorAll("[data-sort]").forEach(btn => {
@@ -292,8 +374,13 @@ export function bindHomeBrewsPreview() {
     const li = target.closest("li");
     if (!li || !li.dataset.brewId) return;
     if (!target.classList.contains("brew-view-button")) return;
-    document.dispatchEvent(new CustomEvent("open-panel", { detail: { targetId: "tab-brew" } }));
-    document.dispatchEvent(new CustomEvent("brew-open-request", { detail: { brewId: li.dataset.brewId } }));
+    const brewId = li.dataset.brewId;
+    const brews = loadBrews();
+    const brew = brews.find(b => b.id === brewId);
+    if (!brew || !detailPanel) return;
+    detailId = brewId;
+    renderBrewDetails(detailPanel, brew);
+    detailPanel.hidden = false;
   });
   apply();
   document.addEventListener("brews-updated", apply);
@@ -340,14 +427,6 @@ export function refillLastBrewIfConfirmed() {
   if (aftertasteSelect) aftertasteSelect.value = last.aftertasteRating || "";
   if (scoreSelect) scoreSelect.value = last.score != null ? String(last.score) : "";
   if (notesInput) notesInput.value = last.notes || "";
-}
-
-function methodLabel(method) {
-  if (method === "espresso") return "Espresso";
-  if (method === "pourover") return "Pour-over";
-  if (method === "immersion") return "Immersion";
-  if (method === "coldbrew") return "Cold brew";
-  return "Other";
 }
 
 function buildFlavorSummary(brew) {
@@ -406,17 +485,6 @@ function renderBrews(list, brews) {
       span.textContent = piece;
       meta.appendChild(span);
     });
-    const score = toNumber(brew.score);
-    if (score !== null) {
-      if (pieces.length) {
-        meta.append(" • ");
-      }
-      const strong = document.createElement("strong");
-      strong.className = "brew-score-inline";
-      strong.textContent = `Score ${score}/10`;
-      meta.appendChild(strong);
-    }
-
     const tags = document.createElement("div");
     tags.className = "item-tags";
     const flavor = buildFlavorSummary(brew);
@@ -465,6 +533,13 @@ function renderBrews(list, brews) {
       actionBtn.className = `ghost-button small-button ${isMainList ? "brew-edit-button" : "brew-view-button"}`;
       actionBtn.textContent = isMainList ? "Edit" : "View";
       side.appendChild(actionBtn);
+      const score = toNumber(brew.score);
+      if (score !== null) {
+        const scoreLabel = document.createElement("span");
+        scoreLabel.className = "brew-side-score";
+        scoreLabel.textContent = `Score ${score}/10`;
+        side.appendChild(scoreLabel);
+      }
       li.appendChild(side);
     }
 
