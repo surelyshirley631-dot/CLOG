@@ -132,17 +132,13 @@
 <h2>Brew Log</h2>
 <form id="brew-form" class="card brew-form-modern">
 <section class="brew-specs-grid">
-<div class="brew-spec-item">
-<label for="brew-date">Date</label>
-<input type="date" id="brew-date" required>
-</div>
-<div class="brew-spec-item">
+<div class="brew-spec-item brew-spec-primary">
 <label for="brew-bean">Bean</label>
 <select id="brew-bean">
 <option value="">No bean selected</option>
 </select>
 </div>
-<div class="brew-spec-item">
+<div class="brew-spec-item brew-spec-primary">
 <label for="brew-method">Method</label>
 <select id="brew-method">
 <option value="espresso">Espresso</option>
@@ -151,6 +147,10 @@
 <option value="coldbrew">Cold brew</option>
 <option value="other">Other</option>
 </select>
+</div>
+<div class="brew-spec-item">
+<label for="brew-date">Date</label>
+<input type="date" id="brew-date" required>
 </div>
 <div class="brew-spec-item">
 <label for="brew-machine">Machine</label>
@@ -168,11 +168,11 @@
 <label for="grind-size">Grind Size</label>
 <input type="text" id="grind-size" placeholder="Numeric or descriptive">
 </div>
-<div class="brew-spec-item">
+<div class="brew-spec-item brew-spec-technical">
 <label for="water-temp">Temp (°C)</label>
 <input type="number" id="water-temp" min="0" max="100" step="0.5">
 </div>
-<div class="brew-spec-item">
+<div class="brew-spec-item brew-spec-technical">
 <label for="water-pressure">Pressure (bar)</label>
 <select id="water-pressure">
 <option value="">Not set</option>
@@ -198,7 +198,7 @@
 <option value="20">20</option>
 </select>
 </div>
-<div class="brew-spec-item">
+<div class="brew-spec-item brew-spec-technical">
 <label for="tamp-pressure">Tamp</label>
 <select id="tamp-pressure">
 <option value="">Not set</option>
@@ -207,39 +207,39 @@
 <option value="high">High</option>
 </select>
 </div>
-<div class="brew-spec-item">
+<div class="brew-spec-item brew-spec-technical">
 <label for="extraction-time">Time (s)</label>
 <input type="number" id="extraction-time" min="0" step="1">
 </div>
-<div class="brew-spec-item">
+<div class="brew-spec-item brew-spec-technical">
 <label for="dose-grams">Dose (g)</label>
-<input type="number" id="dose-grams" min="0" step="0.1">
+<div class="brew-dual-values">
+<input type="number" id="dose-grams" min="0" step="0.1" placeholder="Dose">
+<span>/</span>
+<input type="number" id="yield-grams" min="0" step="0.1" placeholder="Yield">
 </div>
-<div class="brew-spec-item">
-<label for="yield-grams">Yield (g)</label>
-<input type="number" id="yield-grams" min="0" step="0.1">
 </div>
 </section>
 <section class="brew-notes-panel">
 <label for="brew-notes">The Notes</label>
 <textarea id="brew-notes" rows="6" placeholder="Describe the aroma, acidity, and overall mouthfeel..."></textarea>
-</section>
-<section class="brew-score-panel">
+<div class="brew-score-inline">
 <div class="brew-score-label">The Score</div>
 <input type="hidden" id="brew-score" value="">
 <div class="brew-bean-rating" id="brew-score-beans" role="radiogroup" aria-label="Brew score">
-<button type="button" class="brew-bean-btn" data-score="1" aria-label="Rate 1 out of 10"></button>
-<button type="button" class="brew-bean-btn" data-score="2" aria-label="Rate 2 out of 10"></button>
-<button type="button" class="brew-bean-btn" data-score="3" aria-label="Rate 3 out of 10"></button>
-<button type="button" class="brew-bean-btn" data-score="4" aria-label="Rate 4 out of 10"></button>
-<button type="button" class="brew-bean-btn" data-score="5" aria-label="Rate 5 out of 10"></button>
-<button type="button" class="brew-bean-btn" data-score="6" aria-label="Rate 6 out of 10"></button>
-<button type="button" class="brew-bean-btn" data-score="7" aria-label="Rate 7 out of 10"></button>
-<button type="button" class="brew-bean-btn" data-score="8" aria-label="Rate 8 out of 10"></button>
-<button type="button" class="brew-bean-btn" data-score="9" aria-label="Rate 9 out of 10"></button>
-<button type="button" class="brew-bean-btn" data-score="10" aria-label="Rate 10 out of 10"></button>
+<button type="button" class="brew-bean-btn" data-score="1" aria-label="Rate 1 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
+<button type="button" class="brew-bean-btn" data-score="2" aria-label="Rate 2 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
+<button type="button" class="brew-bean-btn" data-score="3" aria-label="Rate 3 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
+<button type="button" class="brew-bean-btn" data-score="4" aria-label="Rate 4 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
+<button type="button" class="brew-bean-btn" data-score="5" aria-label="Rate 5 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
+<button type="button" class="brew-bean-btn" data-score="6" aria-label="Rate 6 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
+<button type="button" class="brew-bean-btn" data-score="7" aria-label="Rate 7 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
+<button type="button" class="brew-bean-btn" data-score="8" aria-label="Rate 8 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
+<button type="button" class="brew-bean-btn" data-score="9" aria-label="Rate 9 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
+<button type="button" class="brew-bean-btn" data-score="10" aria-label="Rate 10 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
 </div>
-<div class="brew-score-value" id="brew-score-value">Not rated</div>
+<div class="brew-score-value" id="brew-score-value">Not Rated</div>
+</div>
 </section>
 <input type="hidden" id="acidity-rating" value="">
 <input type="hidden" id="bitterness-rating" value="">

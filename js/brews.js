@@ -177,7 +177,7 @@ function syncBrewScoreRatingUi() {
     button.setAttribute("aria-checked", isActive ? "true" : "false");
   });
   if (valueLabel) {
-    valueLabel.textContent = score > 0 ? `${score}/10` : "Not rated";
+    valueLabel.textContent = score > 0 ? `${score}/10` : "Not Rated";
   }
 }
 
@@ -185,12 +185,33 @@ function initBrewScoreRatingUi() {
   const scoreInput = document.getElementById("brew-score");
   const ratingWrap = document.getElementById("brew-score-beans");
   if (!scoreInput || !ratingWrap) return;
+  const beanSvg = `
+    <svg viewBox="0 0 28 34" aria-hidden="true">
+      <defs>
+        <linearGradient id="beanGradient" x1="7" y1="4" x2="22" y2="31" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#4a2f1f"></stop>
+          <stop offset="58%" stop-color="#7c4a28"></stop>
+          <stop offset="100%" stop-color="#b45309"></stop>
+        </linearGradient>
+      </defs>
+      <ellipse class="bean-body" cx="14" cy="17" rx="9.6" ry="13.2"></ellipse>
+      <path class="bean-seam-shadow" d="M13.4 6.4c-2.4 3.6-2.5 6.8-.4 9.6 2 2.8 1.8 5.7-1.5 9.8"></path>
+      <path class="bean-seam" d="M14.6 6.5c-2.2 3.3-2.2 6.1-.3 8.7 1.9 2.7 1.7 5.3-1.2 8.9"></path>
+      <ellipse class="bean-highlight" cx="10" cy="10.8" rx="2.4" ry="3.8"></ellipse>
+    </svg>
+  `;
+  ratingWrap.querySelectorAll(".brew-bean-btn").forEach(button => {
+    button.innerHTML = beanSvg;
+  });
   if (ratingWrap.getAttribute("data-bound") !== "true") {
     ratingWrap.querySelectorAll(".brew-bean-btn").forEach(button => {
       button.addEventListener("click", () => {
         const value = Number(button.getAttribute("data-score") || "0");
         const current = Number(scoreInput.value) || 0;
         scoreInput.value = current === value ? "" : String(value);
+        button.classList.remove("pop");
+        void button.offsetWidth;
+        button.classList.add("pop");
         syncBrewScoreRatingUi();
       });
     });
@@ -255,24 +276,18 @@ function renderBrewDetails(container, brew) {
   notesBox.className = "brew-notes-box";
   notesBox.textContent = brew.notes && brew.notes.trim() ? brew.notes.trim() : "No tasting notes.";
   right.appendChild(notesTitle);
-  right.appendChild(notesBox);
-
-  const ratingItems = [
-    { label: "Acidity", score: brew.acidityRating },
-    { label: "Bitterness", score: brew.bitternessRating },
-    { label: "Body", score: brew.bodyRating },
-    { label: "Aftertaste", score: brew.aftertasteRating }
-  ].filter(item => toNumber(item.score) !== null);
-  if (ratingItems.length) {
-    const rightTitle = document.createElement("h5");
-    rightTitle.className = "brew-detail-section-title brew-detail-section-title-gap";
-    rightTitle.textContent = "Flavor Ratings";
-    const ratingsWrap = document.createElement("div");
-    ratingsWrap.className = "brew-ratings-stack";
-    ratingItems.forEach(item => ratingsWrap.appendChild(ratingBar(item)));
-    right.appendChild(rightTitle);
-    right.appendChild(ratingsWrap);
+  const acidityLegacy = toNumber(brew.acidityRating);
+  const bitternessLegacy = toNumber(brew.bitternessRating);
+  if (acidityLegacy !== null || bitternessLegacy !== null) {
+    const legacy = document.createElement("div");
+    legacy.className = "brew-legacy-profile";
+    const parts = [];
+    if (acidityLegacy !== null) parts.push(`Acidity ${acidityLegacy}`);
+    if (bitternessLegacy !== null) parts.push(`Bitterness ${bitternessLegacy}`);
+    legacy.textContent = `Legacy Profile: ${parts.join(", ")}.`;
+    right.appendChild(legacy);
   }
+  right.appendChild(notesBox);
 
   grid.appendChild(left);
   grid.appendChild(right);
