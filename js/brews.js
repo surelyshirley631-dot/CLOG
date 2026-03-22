@@ -97,6 +97,7 @@ function fillBrewFormValues(brew) {
   if (aftertasteSelect) aftertasteSelect.value = brew.aftertasteRating || "";
   if (scoreSelect) scoreSelect.value = brew.score != null ? String(brew.score) : "";
   if (notesInput) notesInput.value = brew.notes || "";
+  syncBrewScoreRatingUi();
 }
 
 function displayValue(value, suffix = "", emptyText = "Not Set") {
@@ -163,6 +164,41 @@ function refreshLucideIcons(container) {
   lucideLib.createIcons({ icons: container.querySelectorAll("[data-lucide]") });
 }
 
+function syncBrewScoreRatingUi() {
+  const scoreInput = document.getElementById("brew-score");
+  const ratingWrap = document.getElementById("brew-score-beans");
+  const valueLabel = document.getElementById("brew-score-value");
+  if (!scoreInput || !ratingWrap) return;
+  const score = Math.max(0, Math.min(10, Number(scoreInput.value) || 0));
+  ratingWrap.querySelectorAll(".brew-bean-btn").forEach(button => {
+    const value = Number(button.getAttribute("data-score") || "0");
+    const isActive = score >= value && value > 0;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-checked", isActive ? "true" : "false");
+  });
+  if (valueLabel) {
+    valueLabel.textContent = score > 0 ? `${score}/10` : "Not rated";
+  }
+}
+
+function initBrewScoreRatingUi() {
+  const scoreInput = document.getElementById("brew-score");
+  const ratingWrap = document.getElementById("brew-score-beans");
+  if (!scoreInput || !ratingWrap) return;
+  if (ratingWrap.getAttribute("data-bound") !== "true") {
+    ratingWrap.querySelectorAll(".brew-bean-btn").forEach(button => {
+      button.addEventListener("click", () => {
+        const value = Number(button.getAttribute("data-score") || "0");
+        const current = Number(scoreInput.value) || 0;
+        scoreInput.value = current === value ? "" : String(value);
+        syncBrewScoreRatingUi();
+      });
+    });
+    ratingWrap.setAttribute("data-bound", "true");
+  }
+  syncBrewScoreRatingUi();
+}
+
 function renderBrewDetails(container, brew) {
   const beans = getBeans();
   const bean = beans.find(b => b.id === brew.beanId);
@@ -212,13 +248,31 @@ function renderBrewDetails(container, brew) {
   left.appendChild(metricsGrid);
 
   const right = document.createElement("div");
-  const rightTitle = document.createElement("h5");
-  rightTitle.className = "brew-detail-section-title";
-  rightTitle.textContent = "Flavor Ratings";
-  const ratingsWrap = document.createElement("div");
-  ratingsWrap.className = "brew-ratings-stack";
-  right.appendChild(rightTitle);
-  right.appendChild(ratingsWrap);
+  const notesTitle = document.createElement("h5");
+  notesTitle.className = "brew-detail-section-title";
+  notesTitle.textContent = "Notes";
+  const notesBox = document.createElement("div");
+  notesBox.className = "brew-notes-box";
+  notesBox.textContent = brew.notes && brew.notes.trim() ? brew.notes.trim() : "No tasting notes.";
+  right.appendChild(notesTitle);
+  right.appendChild(notesBox);
+
+  const ratingItems = [
+    { label: "Acidity", score: brew.acidityRating },
+    { label: "Bitterness", score: brew.bitternessRating },
+    { label: "Body", score: brew.bodyRating },
+    { label: "Aftertaste", score: brew.aftertasteRating }
+  ].filter(item => toNumber(item.score) !== null);
+  if (ratingItems.length) {
+    const rightTitle = document.createElement("h5");
+    rightTitle.className = "brew-detail-section-title brew-detail-section-title-gap";
+    rightTitle.textContent = "Flavor Ratings";
+    const ratingsWrap = document.createElement("div");
+    ratingsWrap.className = "brew-ratings-stack";
+    ratingItems.forEach(item => ratingsWrap.appendChild(ratingBar(item)));
+    right.appendChild(rightTitle);
+    right.appendChild(ratingsWrap);
+  }
 
   grid.appendChild(left);
   grid.appendChild(right);
@@ -227,7 +281,7 @@ function renderBrewDetails(container, brew) {
   card.appendChild(grid);
   shell.appendChild(card);
   container.appendChild(shell);
-  if (!metricsGrid || !ratingsWrap) return;
+  if (!metricsGrid) return;
   [
     { label: "Coffee Bean", value: beanName, icon: "bean" },
     { label: "Machine", value: displayValue(brew.coffeeMachine), icon: "coffee" },
@@ -237,12 +291,6 @@ function renderBrewDetails(container, brew) {
     { label: "Pressure", value: displayValue(brew.waterPressure, " bar"), icon: "gauge" },
     { label: "Tamp", value: displayValue(brew.tampPressure), icon: "hand" }
   ].forEach(item => metricsGrid.appendChild(metricCard(item)));
-  [
-    { label: "Acidity", score: brew.acidityRating },
-    { label: "Bitterness", score: brew.bitternessRating },
-    { label: "Body", score: brew.bodyRating },
-    { label: "Aftertaste", score: brew.aftertasteRating }
-  ].forEach(item => ratingsWrap.appendChild(ratingBar(item)));
   refreshLucideIcons(container);
 }
 
@@ -269,6 +317,7 @@ export function bindBrewsUi() {
   renderBeansOptions(beanSelect);
   renderMachineOptions(machineSelect);
   renderGrinderOptions(grinderSelect);
+  initBrewScoreRatingUi();
   renderBrews(list, loadBrews());
 
   document.addEventListener("beans-updated", () => {
@@ -354,6 +403,7 @@ export function bindBrewsUi() {
 
     editingId = null;
     form.reset();
+    syncBrewScoreRatingUi();
     renderBeansOptions(beanSelect);
     renderMachineOptions(machineSelect);
     renderGrinderOptions(grinderSelect);
@@ -490,6 +540,7 @@ export function refillLastBrewIfConfirmed() {
   if (aftertasteSelect) aftertasteSelect.value = last.aftertasteRating || "";
   if (scoreSelect) scoreSelect.value = last.score != null ? String(last.score) : "";
   if (notesInput) notesInput.value = last.notes || "";
+  syncBrewScoreRatingUi();
 }
 
 function buildFlavorSummary(brew) {
