@@ -10,7 +10,7 @@ function setHeaderFor(targetId) {
   const subtitle = document.querySelector(".app-subtitle");
   if (!title || !subtitle) return;
   if (targetId === "home") {
-    title.textContent = "CLOG";
+    title.textContent = "My Brew";
     subtitle.textContent = "Coffee log for brews, cafes, and beans";
     return;
   }
