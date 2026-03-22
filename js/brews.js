@@ -99,8 +99,8 @@ function fillBrewFormValues(brew) {
   if (notesInput) notesInput.value = brew.notes || "";
 }
 
-function displayValue(value, suffix = "") {
-  if (value === undefined || value === null || value === "") return "—";
+function displayValue(value, suffix = "", emptyText = "Not Set") {
+  if (value === undefined || value === null || value === "") return emptyText;
   return `${value}${suffix}`;
 }
 
@@ -112,59 +112,138 @@ function methodLabel(method) {
   return "Other";
 }
 
-function detailEntries(brew, beanName) {
-  return [
-    ["Bean", beanName || "No bean linked"],
-    ["Method", methodLabel(brew.method)],
-    ["Date", displayValue(brew.date)],
-    ["Machine", displayValue(brew.coffeeMachine)],
-    ["Grinder", displayValue(brew.grinderModel)],
-    ["Grind size", displayValue(brew.grindSize)],
-    ["Tamp pressure", displayValue(brew.tampPressure)],
-    ["Water temp", displayValue(brew.waterTemp, " °C")],
-    ["Water pressure", displayValue(brew.waterPressure, " bar")],
-    ["Dose", displayValue(brew.doseGrams, " g")],
-    ["Yield", displayValue(brew.yieldGrams, " g")],
-    ["Ratio", displayValue(brew.ratioText || computeRatio(brew.doseGrams, brew.yieldGrams))],
-    ["Extraction", displayValue(brew.extractionTime, " s")],
-    ["Score", displayValue(brew.score, "/10")],
-    ["Acidity", displayValue(brew.acidityRating, "/5")],
-    ["Bitterness", displayValue(brew.bitternessRating, "/5")],
-    ["Body", displayValue(brew.bodyRating, "/5")],
-    ["Aftertaste", displayValue(brew.aftertasteRating, "/5")],
-    ["Notes", displayValue(brew.notes)]
-  ];
+function metricCard({ label, value, icon }) {
+  const card = document.createElement("div");
+  card.className = "brew-metric-card";
+  const top = document.createElement("div");
+  top.className = "brew-metric-top";
+  const iconEl = document.createElement("i");
+  iconEl.setAttribute("data-lucide", icon);
+  iconEl.className = "brew-metric-icon";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  top.appendChild(iconEl);
+  top.appendChild(labelEl);
+  const valueEl = document.createElement("div");
+  const isNotSet = value === "Not Set";
+  valueEl.className = isNotSet ? "brew-metric-value brew-metric-value-empty" : "brew-metric-value";
+  valueEl.textContent = value;
+  card.appendChild(top);
+  card.appendChild(valueEl);
+  return card;
+}
+
+function ratingBar({ label, score }) {
+  const safe = Math.max(0, Math.min(5, toNumber(score) || 0));
+  const row = document.createElement("div");
+  row.className = "brew-rating-row";
+  const head = document.createElement("div");
+  head.className = "brew-rating-head";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  const scoreEl = document.createElement("span");
+  scoreEl.className = "brew-rating-score";
+  scoreEl.textContent = `${safe}/5`;
+  head.appendChild(labelEl);
+  head.appendChild(scoreEl);
+  const barWrap = document.createElement("div");
+  barWrap.className = "brew-rating-bar-track";
+  const bar = document.createElement("div");
+  bar.className = "brew-rating-bar-fill";
+  bar.style.width = `${(safe / 5) * 100}%`;
+  barWrap.appendChild(bar);
+  row.appendChild(head);
+  row.appendChild(barWrap);
+  return row;
+}
+
+function refreshLucideIcons(container) {
+  const lucideLib = window.lucide;
+  if (!lucideLib || typeof lucideLib.createIcons !== "function") return;
+  lucideLib.createIcons({ icons: container.querySelectorAll("[data-lucide]") });
 }
 
 function renderBrewDetails(container, brew) {
   const beans = getBeans();
   const bean = beans.find(b => b.id === brew.beanId);
   const beanName = bean ? bean.name : "No bean linked";
+  const scoreValue = toNumber(brew.score);
   container.innerHTML = "";
+  container.className = "brew-inline-detail";
+  const shell = document.createElement("div");
+  shell.className = "brew-detail-shell";
+  const card = document.createElement("section");
+  card.className = "brew-detail-card-modern";
 
-  const title = document.createElement("div");
-  title.className = "brew-detail-title";
+  const head = document.createElement("div");
+  head.className = "brew-detail-head";
+  const titleWrap = document.createElement("div");
+  const title = document.createElement("h4");
+  title.className = "brew-detail-headline";
   title.textContent = `${beanName} • ${methodLabel(brew.method)}`;
+  const dateRow = document.createElement("div");
+  dateRow.className = "brew-detail-date";
+  const dateIcon = document.createElement("i");
+  dateIcon.setAttribute("data-lucide", "calendar-days");
+  dateIcon.className = "brew-detail-date-icon";
+  const dateText = document.createElement("span");
+  dateText.textContent = displayValue(brew.date, "", "Not Set");
+  dateRow.appendChild(dateIcon);
+  dateRow.appendChild(dateText);
+  titleWrap.appendChild(title);
+  titleWrap.appendChild(dateRow);
+
+  const badge = document.createElement("div");
+  badge.className = "brew-detail-score-badge";
+  badge.textContent = scoreValue !== null ? String(scoreValue) : "—";
+
+  head.appendChild(titleWrap);
+  head.appendChild(badge);
 
   const grid = document.createElement("div");
-  grid.className = "brew-detail-grid";
+  grid.className = "brew-detail-columns";
+  const left = document.createElement("div");
+  const leftTitle = document.createElement("h5");
+  leftTitle.className = "brew-detail-section-title";
+  leftTitle.textContent = "Core Parameters";
+  const metricsGrid = document.createElement("div");
+  metricsGrid.className = "brew-core-grid";
+  left.appendChild(leftTitle);
+  left.appendChild(metricsGrid);
 
-  detailEntries(brew, beanName).forEach(([label, value]) => {
-    const row = document.createElement("div");
-    row.className = "brew-detail-row";
-    const labelEl = document.createElement("span");
-    labelEl.className = "brew-detail-label";
-    labelEl.textContent = label;
-    const valueEl = document.createElement("span");
-    valueEl.className = "brew-detail-value";
-    valueEl.textContent = value;
-    row.appendChild(labelEl);
-    row.appendChild(valueEl);
-    grid.appendChild(row);
-  });
+  const right = document.createElement("div");
+  const rightTitle = document.createElement("h5");
+  rightTitle.className = "brew-detail-section-title";
+  rightTitle.textContent = "Flavor Ratings";
+  const ratingsWrap = document.createElement("div");
+  ratingsWrap.className = "brew-ratings-stack";
+  right.appendChild(rightTitle);
+  right.appendChild(ratingsWrap);
 
-  container.appendChild(title);
-  container.appendChild(grid);
+  grid.appendChild(left);
+  grid.appendChild(right);
+
+  card.appendChild(head);
+  card.appendChild(grid);
+  shell.appendChild(card);
+  container.appendChild(shell);
+  if (!metricsGrid || !ratingsWrap) return;
+  [
+    { label: "Coffee Bean", value: beanName, icon: "bean" },
+    { label: "Machine", value: displayValue(brew.coffeeMachine), icon: "coffee" },
+    { label: "Grinder", value: displayValue(brew.grinderModel), icon: "settings-2" },
+    { label: "Grind Size", value: displayValue(brew.grindSize), icon: "ruler" },
+    { label: "Water Temp", value: displayValue(brew.waterTemp, "°C"), icon: "thermometer" },
+    { label: "Pressure", value: displayValue(brew.waterPressure, " bar"), icon: "gauge" },
+    { label: "Tamp", value: displayValue(brew.tampPressure), icon: "hand" }
+  ].forEach(item => metricsGrid.appendChild(metricCard(item)));
+  [
+    { label: "Acidity", score: brew.acidityRating },
+    { label: "Bitterness", score: brew.bitternessRating },
+    { label: "Body", score: brew.bodyRating },
+    { label: "Aftertaste", score: brew.aftertasteRating }
+  ].forEach(item => ratingsWrap.appendChild(ratingBar(item)));
+  refreshLucideIcons(container);
 }
 
 function buildInlineDetail(brew) {
@@ -433,6 +512,9 @@ function renderBrews(list, brews, selectedDetailId = "") {
   brews.forEach(brew => {
     const li = document.createElement("li");
     li.className = "item";
+    if (isHomeList && selectedDetailId === brew.id) {
+      li.classList.add("item-open");
+    }
     li.dataset.brewId = brew.id;
 
     const main = document.createElement("div");
