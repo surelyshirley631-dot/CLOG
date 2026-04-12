@@ -1,4 +1,4 @@
-import { loadBrews, saveBrews } from "./storage.js";
+import { loadBrews, saveBrews, loadKnowledgeEntries, loadSelectedKnowledgeScopes } from "./storage.js";
 import { getBeans, renderBeansOptions, updateBeanStock } from "./beans.js";
 import { renderGrinderOptions } from "./grinders.js";
 import { renderMachineOptions } from "./machines.js";
@@ -97,7 +97,9 @@ function fillBrewFormValues(brew) {
   if (aftertasteSelect) aftertasteSelect.value = brew.aftertasteRating || "";
   if (scoreSelect) scoreSelect.value = brew.score != null ? String(brew.score) : "";
   if (notesInput) notesInput.value = brew.notes || "";
+  stopBrewTimer();
   syncBrewScoreRatingUi();
+  syncFormTimerDisplay();
 }
 
 function displayValue(value, suffix = "", emptyText = "Not Set") {
@@ -111,6 +113,204 @@ function methodLabel(method) {
   if (method === "immersion") return "Immersion";
   if (method === "coldbrew") return "Cold brew";
   return "Other";
+}
+
+function formatMass(value) {
+  const n = toNumber(value);
+  if (n === null) return "Not Set";
+  return `${n.toFixed(1)}g`;
+}
+
+function formatSeconds(value) {
+  const n = toNumber(value);
+  if (n === null) return "Not Set";
+  return `${Math.max(0, Math.round(n))}s`;
+}
+
+function formatTimer(value) {
+  const n = toNumber(value);
+  if (n === null) return "--:--";
+  const total = Math.max(0, Math.round(n));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+let brewTimerSeconds = 0;
+let brewTimerRunning = false;
+let brewTimerTickHandle = null;
+
+function syncFormTimerDisplay() {
+  const timerValue = document.getElementById("brew-timer-value");
+  if (!timerValue) return;
+  timerValue.textContent = formatTimer(brewTimerSeconds);
+}
+
+function setTimerRunningState(isRunning) {
+  const startBtn = document.getElementById("brew-timer-start");
+  const pauseBtn = document.getElementById("brew-timer-pause");
+  if (startBtn) startBtn.disabled = isRunning;
+  if (pauseBtn) pauseBtn.disabled = !isRunning;
+}
+
+function stopBrewTimer() {
+  if (brewTimerTickHandle) {
+    window.clearInterval(brewTimerTickHandle);
+    brewTimerTickHandle = null;
+  }
+  brewTimerRunning = false;
+  setTimerRunningState(false);
+}
+
+function startBrewTimer() {
+  if (brewTimerRunning) return;
+  brewTimerRunning = true;
+  setTimerRunningState(true);
+  brewTimerTickHandle = window.setInterval(() => {
+    brewTimerSeconds += 1;
+    syncFormTimerDisplay();
+  }, 1000);
+}
+
+function resetBrewTimer() {
+  stopBrewTimer();
+  brewTimerSeconds = 0;
+  syncFormTimerDisplay();
+}
+
+function bindBrewTimerControls() {
+  const startBtn = document.getElementById("brew-timer-start");
+  const pauseBtn = document.getElementById("brew-timer-pause");
+  const resetBtn = document.getElementById("brew-timer-reset");
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      startBrewTimer();
+    });
+  }
+  if (pauseBtn) {
+    pauseBtn.addEventListener("click", () => {
+      stopBrewTimer();
+      syncFormTimerDisplay();
+    });
+  }
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      resetBrewTimer();
+    });
+  }
+  setTimerRunningState(false);
+}
+
+function extractMeaningfulNotes(notes) {
+  if (!notes || !String(notes).trim()) return "";
+  const cleaned = String(notes).replace(/\s+/g, " ").trim();
+  return cleaned.slice(0, 140);
+}
+
+function tokenizeQuery(text) {
+  const raw = String(text || "").toLowerCase();
+  const english = raw.match(/[a-z]{3,}/g) || [];
+  const chinese = raw.match(/[\u4e00-\u9fa5]{2,}/g) || [];
+  return Array.from(new Set([...english, ...chinese]));
+}
+
+function pickScopedKnowledge(brew, limit = 2) {
+  const selectedScopeIds = loadSelectedKnowledgeScopes();
+  if (!selectedScopeIds.length) return [];
+  const allEntries = loadKnowledgeEntries();
+  const entries = allEntries.filter(entry => selectedScopeIds.includes(entry.scopeId));
+  if (!entries.length) return [];
+  const query = [
+    brew.notes || "",
+    brew.grindSize || "",
+    brew.waterTemp != null ? `temp ${brew.waterTemp}` : "",
+    brew.extractionTime != null ? `time ${brew.extractionTime}` : "",
+    brew.waterPressure != null ? `pressure ${brew.waterPressure}` : ""
+  ].join(" ");
+  const tokens = tokenizeQuery(query);
+  const scored = entries
+    .map(entry => {
+      const content = String(entry.content || "");
+      const lower = content.toLowerCase();
+      const score = tokens.reduce((sum, token) => (lower.includes(token) ? sum + 1 : sum), 0);
+      return { entry, score };
+    })
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(item => item.entry);
+  if (scored.length) return scored;
+  return entries.slice(0, limit);
+}
+
+function buildInsightText(brew) {
+  const notesText = extractMeaningfulNotes(brew.notes);
+  const notesLower = notesText.toLowerCase();
+  const grind = displayValue(brew.grindSize);
+  const temp = displayValue(brew.waterTemp, "°C");
+  const time = formatSeconds(brew.extractionTime);
+  const lines = [];
+
+  const noteRules = [
+    {
+      match: /(太酸|偏酸|酸尖|sour|sharp|tart)/i,
+      advice: `你写到酸感偏前段，下一杯先把研磨调细半格，水温提高到 ${temp === "Not Set" ? "93–94°C" : `${Math.min(96, (toNumber(brew.waterTemp) || 93) + 1)}°C`}，并把时间稳定在 ${time === "Not Set" ? "24–30s" : `${Math.max(22, (toNumber(brew.extractionTime) || 24) + 2)}s`}。`
+    },
+    {
+      match: /(苦涩|过苦|木涩|bitter|astringent|dry)/i,
+      advice: `你提到后段苦涩，建议研磨放粗半格，出杯时间缩短到 ${time === "Not Set" ? "22–26s" : `${Math.max(18, (toNumber(brew.extractionTime) || 25) - 2)}s`}，并把水温控制在 ${temp === "Not Set" ? "91–93°C" : `${Math.max(88, (toNumber(brew.waterTemp) || 92) - 1)}°C`}。`
+    },
+    {
+      match: /(流速快|跑得快|过快|fast flow|runs fast|gusher)/i,
+      advice: `你记录了流速偏快，可把研磨细一格并轻微增粉，让流速更稳，目标时间落在 ${time === "Not Set" ? "25–30s" : `${Math.max(24, toNumber(brew.extractionTime) || 25)}s`}。`
+    },
+    {
+      match: /(流速慢|堵塞|闷住|slow flow|choke|stalled)/i,
+      advice: `你记录了流速偏慢，建议先把研磨粗半格，同时减少压粉力度，让萃取回到顺畅区间。`
+    }
+  ];
+
+  noteRules.forEach(rule => {
+    if (rule.match.test(notesText) || rule.match.test(notesLower)) {
+      lines.push(rule.advice);
+    }
+  });
+
+  if (!lines.length) {
+    const tempValue = toNumber(brew.waterTemp);
+    const timeValue = toNumber(brew.extractionTime);
+    if (timeValue !== null && timeValue < 20) {
+      lines.push("这杯时间偏短，建议略微调细研磨并延长接触时间，让甜感与厚度更完整。");
+    } else if (timeValue !== null && timeValue > 35) {
+      lines.push("这杯时间偏长，建议略微调粗研磨或减小粉量，降低后段堆积苦感。");
+    }
+    if (tempValue !== null && tempValue > 96) {
+      lines.push("当前水温偏高，下一杯可降到 92–94°C，风味会更干净。");
+    } else if (tempValue !== null && tempValue < 88) {
+      lines.push("当前水温偏低，建议提高到 90–93°C，帮助提升萃取完整度。");
+    }
+  }
+
+  if (!lines.length) {
+    lines.push(`以当前参数为基线（Grind ${grind} / Temp ${temp} / Time ${time}），下一杯先做单变量微调：研磨或时间只改一个档位，更容易锁定甜感平衡点。`);
+  }
+
+  const scopedKnowledge = pickScopedKnowledge(brew, 2);
+  if (scopedKnowledge.length) {
+    const knowledgeText = scopedKnowledge
+      .map(entry => String(entry.content || "").replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .map(text => text.slice(0, 72))
+      .join("；");
+    if (knowledgeText) {
+      lines[0] = `${lines[0]} 结合你勾选的手记要点：${knowledgeText}。`;
+    }
+  }
+
+  if (notesText) {
+    return `根据你的笔记“${notesText}”，${lines[0]}`;
+  }
+  return lines[0];
 }
 
 function metricCard({ label, value, icon }) {
@@ -250,32 +450,118 @@ function renderBrewDetails(container, brew) {
   titleWrap.appendChild(title);
   titleWrap.appendChild(dateRow);
 
+  const scoreWrap = document.createElement("div");
+  scoreWrap.className = "brew-detail-score-wrap";
   const badge = document.createElement("div");
   badge.className = "brew-detail-score-badge";
   badge.textContent = scoreValue !== null ? String(scoreValue) : "—";
+  const badgeLabel = document.createElement("div");
+  badgeLabel.className = "brew-score-caption";
+  badgeLabel.textContent = "SCORE";
+  scoreWrap.appendChild(badge);
+  scoreWrap.appendChild(badgeLabel);
+
+  const insightCard = document.createElement("div");
+  insightCard.className = "brew-insight-card";
+  const insightTitle = document.createElement("div");
+  insightTitle.className = "brew-insight-title";
+  insightTitle.textContent = "INSIGHT";
+  const insightBody = document.createElement("div");
+  insightBody.className = "brew-insight-body";
+  insightBody.textContent = buildInsightText(brew);
+  insightCard.appendChild(insightTitle);
+  insightCard.appendChild(insightBody);
+  if (scoreValue !== null && scoreValue > 0) {
+    insightCard.classList.add("is-ready");
+    requestAnimationFrame(() => {
+      insightCard.classList.add("is-visible");
+    });
+  } else {
+    insightCard.hidden = true;
+  }
+  scoreWrap.appendChild(insightCard);
 
   head.appendChild(titleWrap);
-  head.appendChild(badge);
+  head.appendChild(scoreWrap);
 
-  const grid = document.createElement("div");
-  grid.className = "brew-detail-columns";
-  const left = document.createElement("div");
-  const leftTitle = document.createElement("h5");
-  leftTitle.className = "brew-detail-section-title";
-  leftTitle.textContent = "Core Parameters";
   const metricsGrid = document.createElement("div");
-  metricsGrid.className = "brew-core-grid";
-  left.appendChild(leftTitle);
-  left.appendChild(metricsGrid);
+  metricsGrid.className = "brew-detail-mobile-grid";
+  const tempCard = document.createElement("div");
+  tempCard.className = "brew-detail-module";
+  const tempLabel = document.createElement("div");
+  tempLabel.className = "brew-detail-module-label";
+  tempLabel.textContent = "TEMP (°C)";
+  const tempValue = document.createElement("div");
+  tempValue.className = "brew-detail-module-value";
+  tempValue.textContent = displayValue(brew.waterTemp);
+  tempCard.appendChild(tempLabel);
+  tempCard.appendChild(tempValue);
 
-  const right = document.createElement("div");
+  const timeCard = document.createElement("div");
+  timeCard.className = "brew-detail-module";
+  const timeLabel = document.createElement("div");
+  timeLabel.className = "brew-detail-module-label";
+  timeLabel.textContent = "TIME (S)";
+  const timeValue = document.createElement("div");
+  timeValue.className = "brew-detail-module-value";
+  timeValue.textContent = formatSeconds(brew.extractionTime);
+  timeCard.appendChild(timeLabel);
+  timeCard.appendChild(timeValue);
+
+  const doseYieldCard = document.createElement("div");
+  doseYieldCard.className = "brew-detail-module brew-detail-dose-yield";
+  const doseYieldLabel = document.createElement("div");
+  doseYieldLabel.className = "brew-detail-module-label";
+  doseYieldLabel.textContent = "DOSE / YIELD";
+  const doseYieldValues = document.createElement("div");
+  doseYieldValues.className = "brew-detail-dose-yield-values";
+  const doseValue = document.createElement("span");
+  doseValue.className = "brew-detail-dose-yield-value";
+  doseValue.textContent = formatMass(brew.doseGrams);
+  const separator = document.createElement("span");
+  separator.className = "brew-detail-dose-yield-separator";
+  separator.textContent = "|";
+  const yieldValue = document.createElement("span");
+  yieldValue.className = "brew-detail-dose-yield-value";
+  yieldValue.textContent = formatMass(brew.yieldGrams);
+  doseYieldValues.appendChild(doseValue);
+  doseYieldValues.appendChild(separator);
+  doseYieldValues.appendChild(yieldValue);
+  doseYieldCard.appendChild(doseYieldLabel);
+  doseYieldCard.appendChild(doseYieldValues);
+
+  const timerCard = document.createElement("div");
+  timerCard.className = "brew-detail-module";
+  const timerLabel = document.createElement("div");
+  timerLabel.className = "brew-detail-module-label";
+  timerLabel.textContent = "TIMER";
+  const timerValue = document.createElement("div");
+  timerValue.className = "brew-detail-module-timer";
+  const timerIcon = document.createElement("i");
+  timerIcon.className = "brew-detail-timer-icon";
+  timerIcon.setAttribute("data-lucide", "clock-3");
+  const timerText = document.createElement("span");
+  timerText.className = "brew-detail-module-value";
+  timerText.textContent = formatTimer(brew.extractionTime);
+  timerValue.appendChild(timerIcon);
+  timerValue.appendChild(timerText);
+  timerCard.appendChild(timerLabel);
+  timerCard.appendChild(timerValue);
+
+  metricsGrid.appendChild(tempCard);
+  metricsGrid.appendChild(timeCard);
+  metricsGrid.appendChild(doseYieldCard);
+  metricsGrid.appendChild(timerCard);
+
   const notesTitle = document.createElement("h5");
   notesTitle.className = "brew-detail-section-title";
   notesTitle.textContent = "Notes";
   const notesBox = document.createElement("div");
   notesBox.className = "brew-notes-box";
   notesBox.textContent = brew.notes && brew.notes.trim() ? brew.notes.trim() : "No tasting notes.";
-  right.appendChild(notesTitle);
+  const notesWrap = document.createElement("div");
+  notesWrap.className = "brew-detail-notes-wrap";
+  notesWrap.appendChild(notesTitle);
   const acidityLegacy = toNumber(brew.acidityRating);
   const bitternessLegacy = toNumber(brew.bitternessRating);
   if (acidityLegacy !== null || bitternessLegacy !== null) {
@@ -285,27 +571,15 @@ function renderBrewDetails(container, brew) {
     if (acidityLegacy !== null) parts.push(`Acidity ${acidityLegacy}`);
     if (bitternessLegacy !== null) parts.push(`Bitterness ${bitternessLegacy}`);
     legacy.textContent = `Legacy Profile: ${parts.join(", ")}.`;
-    right.appendChild(legacy);
+    notesWrap.appendChild(legacy);
   }
-  right.appendChild(notesBox);
-
-  grid.appendChild(left);
-  grid.appendChild(right);
+  notesWrap.appendChild(notesBox);
 
   card.appendChild(head);
-  card.appendChild(grid);
+  card.appendChild(metricsGrid);
+  card.appendChild(notesWrap);
   shell.appendChild(card);
   container.appendChild(shell);
-  if (!metricsGrid) return;
-  [
-    { label: "Coffee Bean", value: beanName, icon: "bean" },
-    { label: "Machine", value: displayValue(brew.coffeeMachine), icon: "coffee" },
-    { label: "Grinder", value: displayValue(brew.grinderModel), icon: "settings-2" },
-    { label: "Grind Size", value: displayValue(brew.grindSize), icon: "ruler" },
-    { label: "Water Temp", value: displayValue(brew.waterTemp, "°C"), icon: "thermometer" },
-    { label: "Pressure", value: displayValue(brew.waterPressure, " bar"), icon: "gauge" },
-    { label: "Tamp", value: displayValue(brew.tampPressure), icon: "hand" }
-  ].forEach(item => metricsGrid.appendChild(metricCard(item)));
   refreshLucideIcons(container);
 }
 
@@ -333,6 +607,9 @@ export function bindBrewsUi() {
   renderMachineOptions(machineSelect);
   renderGrinderOptions(grinderSelect);
   initBrewScoreRatingUi();
+  bindBrewTimerControls();
+  stopBrewTimer();
+  syncFormTimerDisplay();
   renderBrews(list, loadBrews());
 
   document.addEventListener("beans-updated", () => {
@@ -417,8 +694,10 @@ export function bindBrewsUi() {
     }
 
     editingId = null;
+    resetBrewTimer();
     form.reset();
     syncBrewScoreRatingUi();
+    syncFormTimerDisplay();
     renderBeansOptions(beanSelect);
     renderMachineOptions(machineSelect);
     renderGrinderOptions(grinderSelect);
@@ -555,7 +834,9 @@ export function refillLastBrewIfConfirmed() {
   if (aftertasteSelect) aftertasteSelect.value = last.aftertasteRating || "";
   if (scoreSelect) scoreSelect.value = last.score != null ? String(last.score) : "";
   if (notesInput) notesInput.value = last.notes || "";
+  stopBrewTimer();
   syncBrewScoreRatingUi();
+  syncFormTimerDisplay();
 }
 
 function buildFlavorSummary(brew) {
@@ -659,7 +940,7 @@ function renderBrews(list, brews, selectedDetailId = "") {
 
     if (isMainList || isHomeList) {
       const side = document.createElement("div");
-      side.className = "item-side";
+      side.className = "item-side brew-side";
       const actionBtn = document.createElement("button");
       actionBtn.type = "button";
       actionBtn.className = `ghost-button small-button ${isMainList ? "brew-edit-button" : "brew-view-button"}`;
@@ -674,7 +955,11 @@ function renderBrews(list, brews, selectedDetailId = "") {
         const scoreLabel = document.createElement("span");
         scoreLabel.className = "brew-side-score";
         scoreLabel.textContent = String(score);
+        const scoreCaption = document.createElement("span");
+        scoreCaption.className = "brew-score-caption brew-score-caption-small";
+        scoreCaption.textContent = "SCORE";
         side.appendChild(scoreLabel);
+        side.appendChild(scoreCaption);
       }
       li.appendChild(side);
     }

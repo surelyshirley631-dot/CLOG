@@ -3,11 +3,13 @@ const STORAGE_KEYS = {
   cafes: "clog_cafes",
   beans: "clog_beans",
   grinders: "clog_grinders",
-  machines: "clog_machines"
+  machines: "clog_machines",
+  knowledgeEntries: "clog_knowledge_entries",
+  selectedKnowledgeScopes: "clog_selected_knowledge_scopes"
 };
 
 const META_KEY = "clog_meta";
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 function safeParse(value, fallback) {
   if (!value) return fallback;
@@ -47,6 +49,29 @@ function normalizeBeans(beans) {
   }));
 }
 
+function normalizeKnowledgeEntries(entries) {
+  return asArray(entries)
+    .map(entry => ({
+      id: entry && entry.id ? String(entry.id) : `knowledge_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      scopeId: entry && entry.scopeId ? String(entry.scopeId) : "default",
+      scopeName: entry && entry.scopeName ? String(entry.scopeName) : "Default",
+      title: entry && entry.title ? String(entry.title) : "",
+      content: entry && entry.content ? String(entry.content) : "",
+      createdAt: entry && entry.createdAt ? String(entry.createdAt) : new Date().toISOString()
+    }))
+    .filter(entry => entry.content.trim().length > 0);
+}
+
+function normalizeSelectedKnowledgeScopes(scopeIds) {
+  return Array.from(
+    new Set(
+      asArray(scopeIds)
+        .map(scopeId => String(scopeId || "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 function resolveImportArray(data, key) {
   if (!data || typeof data !== "object") return [];
   if (Array.isArray(data[key])) return data[key];
@@ -66,8 +91,10 @@ function buildImportPayload(raw) {
   const beans = normalizeBeans(resolveImportArray(source, "beans"));
   const grinders = asArray(resolveImportArray(source, "grinders"));
   const machines = asArray(resolveImportArray(source, "machines"));
-  const importedAny = brews.length > 0 || cafes.length > 0 || beans.length > 0 || grinders.length > 0 || machines.length > 0;
-  return { brews, cafes, beans, grinders, machines, importedAny };
+  const knowledgeEntries = normalizeKnowledgeEntries(resolveImportArray(source, "knowledgeEntries"));
+  const selectedKnowledgeScopes = normalizeSelectedKnowledgeScopes(resolveImportArray(source, "selectedKnowledgeScopes"));
+  const importedAny = brews.length > 0 || cafes.length > 0 || beans.length > 0 || grinders.length > 0 || machines.length > 0 || knowledgeEntries.length > 0;
+  return { brews, cafes, beans, grinders, machines, knowledgeEntries, selectedKnowledgeScopes, importedAny };
 }
 
 function readStorageSnapshot() {
@@ -77,6 +104,8 @@ function readStorageSnapshot() {
     [STORAGE_KEYS.beans]: localStorage.getItem(STORAGE_KEYS.beans),
     [STORAGE_KEYS.grinders]: localStorage.getItem(STORAGE_KEYS.grinders),
     [STORAGE_KEYS.machines]: localStorage.getItem(STORAGE_KEYS.machines),
+    [STORAGE_KEYS.knowledgeEntries]: localStorage.getItem(STORAGE_KEYS.knowledgeEntries),
+    [STORAGE_KEYS.selectedKnowledgeScopes]: localStorage.getItem(STORAGE_KEYS.selectedKnowledgeScopes),
     [META_KEY]: localStorage.getItem(META_KEY)
   };
 }
@@ -108,6 +137,8 @@ function persistPayload(payload) {
   localStorage.setItem(STORAGE_KEYS.beans, JSON.stringify(payload.beans));
   localStorage.setItem(STORAGE_KEYS.grinders, JSON.stringify(payload.grinders));
   localStorage.setItem(STORAGE_KEYS.machines, JSON.stringify(payload.machines));
+  localStorage.setItem(STORAGE_KEYS.knowledgeEntries, JSON.stringify(normalizeKnowledgeEntries(payload.knowledgeEntries)));
+  localStorage.setItem(STORAGE_KEYS.selectedKnowledgeScopes, JSON.stringify(normalizeSelectedKnowledgeScopes(payload.selectedKnowledgeScopes)));
   saveMeta({ schemaVersion: CURRENT_SCHEMA_VERSION });
 }
 
@@ -128,7 +159,9 @@ function migrateBeansV2() {
 export function migrateIfNeeded() {
   const meta = loadMeta();
   if ((meta.schemaVersion || 1) < CURRENT_SCHEMA_VERSION) {
-    migrateBeansV2();
+    if ((meta.schemaVersion || 1) < 2) {
+      migrateBeansV2();
+    }
     meta.schemaVersion = CURRENT_SCHEMA_VERSION;
     saveMeta(meta);
   }
@@ -180,7 +213,9 @@ export function exportAll() {
     cafes: loadCafes(),
     beans: loadBeans(),
     grinders: loadGrinders(),
-    machines: loadMachines()
+    machines: loadMachines(),
+    knowledgeEntries: loadKnowledgeEntries(),
+    selectedKnowledgeScopes: loadSelectedKnowledgeScopes()
   };
 }
 
@@ -210,4 +245,22 @@ export function resetAll() {
   localStorage.removeItem(STORAGE_KEYS.beans);
   localStorage.removeItem(STORAGE_KEYS.grinders);
   localStorage.removeItem(STORAGE_KEYS.machines);
+  localStorage.removeItem(STORAGE_KEYS.knowledgeEntries);
+  localStorage.removeItem(STORAGE_KEYS.selectedKnowledgeScopes);
+}
+
+export function loadKnowledgeEntries() {
+  return normalizeKnowledgeEntries(safeParse(localStorage.getItem(STORAGE_KEYS.knowledgeEntries), []));
+}
+
+export function saveKnowledgeEntries(entries) {
+  localStorage.setItem(STORAGE_KEYS.knowledgeEntries, JSON.stringify(normalizeKnowledgeEntries(entries)));
+}
+
+export function loadSelectedKnowledgeScopes() {
+  return normalizeSelectedKnowledgeScopes(safeParse(localStorage.getItem(STORAGE_KEYS.selectedKnowledgeScopes), []));
+}
+
+export function saveSelectedKnowledgeScopes(scopeIds) {
+  localStorage.setItem(STORAGE_KEYS.selectedKnowledgeScopes, JSON.stringify(normalizeSelectedKnowledgeScopes(scopeIds)));
 }
