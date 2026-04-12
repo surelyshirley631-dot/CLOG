@@ -5,11 +5,12 @@ const STORAGE_KEYS = {
   grinders: "clog_grinders",
   machines: "clog_machines",
   knowledgeEntries: "clog_knowledge_entries",
-  selectedKnowledgeScopes: "clog_selected_knowledge_scopes"
+  selectedKnowledgeScopes: "clog_selected_knowledge_scopes",
+  aiSettings: "clog_ai_settings"
 };
 
 const META_KEY = "clog_meta";
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 function safeParse(value, fallback) {
   if (!value) return fallback;
@@ -72,6 +73,18 @@ function normalizeSelectedKnowledgeScopes(scopeIds) {
   );
 }
 
+function normalizeAiSettings(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const model = source.model ? String(source.model).trim() : "gpt-4o-mini";
+  const apiKey = source.apiKey ? String(source.apiKey).trim() : "";
+  const enabled = Boolean(source.enabled && apiKey);
+  return {
+    enabled,
+    model: model || "gpt-4o-mini",
+    apiKey
+  };
+}
+
 function resolveImportArray(data, key) {
   if (!data || typeof data !== "object") return [];
   if (Array.isArray(data[key])) return data[key];
@@ -93,8 +106,9 @@ function buildImportPayload(raw) {
   const machines = asArray(resolveImportArray(source, "machines"));
   const knowledgeEntries = normalizeKnowledgeEntries(resolveImportArray(source, "knowledgeEntries"));
   const selectedKnowledgeScopes = normalizeSelectedKnowledgeScopes(resolveImportArray(source, "selectedKnowledgeScopes"));
+  const aiSettings = normalizeAiSettings(source && typeof source === "object" ? source.aiSettings : {});
   const importedAny = brews.length > 0 || cafes.length > 0 || beans.length > 0 || grinders.length > 0 || machines.length > 0 || knowledgeEntries.length > 0;
-  return { brews, cafes, beans, grinders, machines, knowledgeEntries, selectedKnowledgeScopes, importedAny };
+  return { brews, cafes, beans, grinders, machines, knowledgeEntries, selectedKnowledgeScopes, aiSettings, importedAny };
 }
 
 function readStorageSnapshot() {
@@ -106,6 +120,7 @@ function readStorageSnapshot() {
     [STORAGE_KEYS.machines]: localStorage.getItem(STORAGE_KEYS.machines),
     [STORAGE_KEYS.knowledgeEntries]: localStorage.getItem(STORAGE_KEYS.knowledgeEntries),
     [STORAGE_KEYS.selectedKnowledgeScopes]: localStorage.getItem(STORAGE_KEYS.selectedKnowledgeScopes),
+    [STORAGE_KEYS.aiSettings]: localStorage.getItem(STORAGE_KEYS.aiSettings),
     [META_KEY]: localStorage.getItem(META_KEY)
   };
 }
@@ -139,6 +154,7 @@ function persistPayload(payload) {
   localStorage.setItem(STORAGE_KEYS.machines, JSON.stringify(payload.machines));
   localStorage.setItem(STORAGE_KEYS.knowledgeEntries, JSON.stringify(normalizeKnowledgeEntries(payload.knowledgeEntries)));
   localStorage.setItem(STORAGE_KEYS.selectedKnowledgeScopes, JSON.stringify(normalizeSelectedKnowledgeScopes(payload.selectedKnowledgeScopes)));
+  localStorage.setItem(STORAGE_KEYS.aiSettings, JSON.stringify(normalizeAiSettings(payload.aiSettings)));
   saveMeta({ schemaVersion: CURRENT_SCHEMA_VERSION });
 }
 
@@ -215,7 +231,8 @@ export function exportAll() {
     grinders: loadGrinders(),
     machines: loadMachines(),
     knowledgeEntries: loadKnowledgeEntries(),
-    selectedKnowledgeScopes: loadSelectedKnowledgeScopes()
+    selectedKnowledgeScopes: loadSelectedKnowledgeScopes(),
+    aiSettings: loadAiSettings()
   };
 }
 
@@ -247,6 +264,7 @@ export function resetAll() {
   localStorage.removeItem(STORAGE_KEYS.machines);
   localStorage.removeItem(STORAGE_KEYS.knowledgeEntries);
   localStorage.removeItem(STORAGE_KEYS.selectedKnowledgeScopes);
+  localStorage.removeItem(STORAGE_KEYS.aiSettings);
 }
 
 export function loadKnowledgeEntries() {
@@ -263,4 +281,12 @@ export function loadSelectedKnowledgeScopes() {
 
 export function saveSelectedKnowledgeScopes(scopeIds) {
   localStorage.setItem(STORAGE_KEYS.selectedKnowledgeScopes, JSON.stringify(normalizeSelectedKnowledgeScopes(scopeIds)));
+}
+
+export function loadAiSettings() {
+  return normalizeAiSettings(safeParse(localStorage.getItem(STORAGE_KEYS.aiSettings), {}));
+}
+
+export function saveAiSettings(value) {
+  localStorage.setItem(STORAGE_KEYS.aiSettings, JSON.stringify(normalizeAiSettings(value)));
 }

@@ -1,4 +1,4 @@
-import { loadBrews, saveBrews, loadKnowledgeEntries, loadSelectedKnowledgeScopes } from "./storage.js";
+import { loadBrews, saveBrews, loadKnowledgeEntries, loadSelectedKnowledgeScopes, loadAiSettings } from "./storage.js";
 import { getBeans, renderBeansOptions, updateBeanStock } from "./beans.js";
 import { renderGrinderOptions } from "./grinders.js";
 import { renderMachineOptions } from "./machines.js";
@@ -243,6 +243,82 @@ function pickScopedKnowledge(brew, limit = 2) {
   return entries.slice(0, limit);
 }
 
+function buildInsightPromptContext(brew, scopedKnowledge, fallbackText) {
+  const parts = [
+    `Notes: ${brew.notes || "none"}`,
+    `Grind: ${brew.grindSize || "Not Set"}`,
+    `Temp: ${brew.waterTemp != null ? `${brew.waterTemp}°C` : "Not Set"}`,
+    `Time: ${brew.extractionTime != null ? `${brew.extractionTime}s` : "Not Set"}`,
+    `Pressure: ${brew.waterPressure != null ? `${brew.waterPressure} bar` : "Not Set"}`,
+    `Fallback Advice: ${fallbackText}`
+  ];
+  if (scopedKnowledge.length) {
+    parts.push(
+      `Selected Scope Notes: ${scopedKnowledge
+        .map(entry => String(entry.content || "").replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+        .slice(0, 4)
+        .join(" | ")}`
+    );
+  }
+  return parts.join("\n");
+}
+
+async function requestGptMiniInsight(brew, fallbackText, scopedKnowledge) {
+  const ai = loadAiSettings();
+  if (!ai.enabled || !ai.apiKey) return fallbackText;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 9000);
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${ai.apiKey}`
+      },
+      body: JSON.stringify({
+        model: ai.model || "gpt-4o-mini",
+        temperature: 0.4,
+        max_tokens: 140,
+        messages: [
+          {
+            role: "system",
+            content:
+              "你是咖啡萃取教练。输出中文，1-2句，直接给可执行微调建议。禁止出现技术词：RAG、模型、文档源、检索。"
+          },
+          {
+            role: "user",
+            content: buildInsightPromptContext(brew, scopedKnowledge, fallbackText)
+          }
+        ]
+      }),
+      signal: controller.signal
+    });
+    if (!response.ok) return fallbackText;
+    const data = await response.json();
+    const content = data && data.choices && data.choices[0] && data.choices[0].message ? String(data.choices[0].message.content || "").trim() : "";
+    if (!content) return fallbackText;
+    return content.replace(/\s+/g, " ").trim();
+  } catch {
+    return fallbackText;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function applyInsightText(insightBody, brew) {
+  const fallbackText = buildInsightText(brew);
+  insightBody.textContent = fallbackText;
+  const scopedKnowledge = pickScopedKnowledge(brew, 2);
+  const requestKey = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  insightBody.setAttribute("data-request-key", requestKey);
+  requestGptMiniInsight(brew, fallbackText, scopedKnowledge).then(text => {
+    if (!insightBody.isConnected) return;
+    if (insightBody.getAttribute("data-request-key") !== requestKey) return;
+    insightBody.textContent = text || fallbackText;
+  });
+}
+
 function buildInsightText(brew) {
   const notesText = extractMeaningfulNotes(brew.notes);
   const notesLower = notesText.toLowerCase();
@@ -468,7 +544,7 @@ function renderBrewDetails(container, brew) {
   insightTitle.textContent = "INSIGHT";
   const insightBody = document.createElement("div");
   insightBody.className = "brew-insight-body";
-  insightBody.textContent = buildInsightText(brew);
+  applyInsightText(insightBody, brew);
   insightCard.appendChild(insightTitle);
   insightCard.appendChild(insightBody);
   if (scoreValue !== null && scoreValue > 0) {

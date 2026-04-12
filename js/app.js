@@ -11,7 +11,9 @@ import {
   loadKnowledgeEntries,
   saveKnowledgeEntries,
   loadSelectedKnowledgeScopes,
-  saveSelectedKnowledgeScopes
+  saveSelectedKnowledgeScopes,
+  loadAiSettings,
+  saveAiSettings
 } from "./storage.js";
 
 function normalizeScopeId(value) {
@@ -261,6 +263,10 @@ function initSettings() {
   const clearSelectionBtn = document.getElementById("knowledge-clear-selection");
   const scopeList = document.getElementById("knowledge-scope-list");
   const scopeHint = document.getElementById("knowledge-scope-hint");
+  const modelInput = document.getElementById("insight-model-name");
+  const apiKeyInput = document.getElementById("insight-api-key");
+  const saveModelBtn = document.getElementById("insight-save-settings");
+  const modelHint = document.getElementById("insight-model-hint");
 
   const renderScopeList = () => {
     if (!scopeList) return;
@@ -371,6 +377,37 @@ function initSettings() {
   }
 
   renderScopeList();
+
+  const renderAiSettings = () => {
+    const settings = loadAiSettings();
+    if (modelInput) {
+      modelInput.value = settings.model || "gpt-4o-mini";
+    }
+    if (apiKeyInput) {
+      apiKeyInput.value = settings.apiKey || "";
+    }
+    if (modelHint) {
+      modelHint.textContent = settings.enabled
+        ? `已启用 ${settings.model}，Insight 会先尝试模型建议，失败时回退本地规则。`
+        : "未配置 Key 时，Insight 使用本地规则建议。";
+    }
+  };
+
+  if (saveModelBtn) {
+    saveModelBtn.addEventListener("click", () => {
+      const model = modelInput ? modelInput.value.trim() : "gpt-4o-mini";
+      const apiKey = apiKeyInput ? apiKeyInput.value.trim() : "";
+      saveAiSettings({
+        enabled: Boolean(apiKey),
+        model: model || "gpt-4o-mini",
+        apiKey
+      });
+      renderAiSettings();
+      window.alert(apiKey ? "已保存模型配置。" : "已清空 API Key，Insight 将使用本地规则。");
+    });
+  }
+
+  renderAiSettings();
 }
 
 function initApp() {

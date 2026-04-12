@@ -541,6 +541,21 @@ Aroma"></textarea>
 <div id="knowledge-scope-list" class="knowledge-scope-list"></div>
 <p id="knowledge-scope-hint" class="settings-hint">Insight 只会在你勾选的范围中检索建议。</p>
 </section>
+<section class="card">
+<h3>Insight model</h3>
+<div class="field-group full-width">
+<label for="insight-model-name">Model</label>
+<input type="text" id="insight-model-name" value="gpt-4o-mini">
+</div>
+<div class="field-group full-width">
+<label for="insight-api-key">API Key</label>
+<input type="password" id="insight-api-key" placeholder="sk-...">
+</div>
+<div class="settings-actions">
+<button type="button" id="insight-save-settings" class="secondary-button">Save model config</button>
+</div>
+<p id="insight-model-hint" class="settings-hint">未配置 Key 时，Insight 使用本地规则建议。</p>
+</section>
 </section>
 </main>
 <button id="data-button" class="data-bar" aria-label="Open Data">Data</button>
