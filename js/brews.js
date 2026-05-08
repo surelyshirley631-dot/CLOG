@@ -20,6 +20,12 @@ function toNumber(value) {
   return n;
 }
 
+function getTodayDateString() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
 function buildOptimizationTips(brew) {
   const tips = [];
   const acidity = toNumber(brew.acidityRating);
@@ -139,6 +145,9 @@ function formatTimer(value) {
 let brewTimerSeconds = 0;
 let brewTimerRunning = false;
 let brewTimerTickHandle = null;
+let brewTimerResetHoldHandle = null;
+let brewTimerResetTriggered = false;
+const TIMER_RESET_HOLD_MS = 700;
 
 function syncFormTimerDisplay() {
   const timerValue = document.getElementById("brew-timer-value");
@@ -146,11 +155,26 @@ function syncFormTimerDisplay() {
   timerValue.textContent = formatTimer(brewTimerSeconds);
 }
 
-function setTimerRunningState(isRunning) {
-  const startBtn = document.getElementById("brew-timer-start");
-  const pauseBtn = document.getElementById("brew-timer-pause");
-  if (startBtn) startBtn.disabled = isRunning;
-  if (pauseBtn) pauseBtn.disabled = !isRunning;
+function setTimerRunningState() {
+  const mainBtn = document.getElementById("brew-timer-main");
+  const resetBtn = document.getElementById("brew-timer-reset");
+  if (mainBtn) {
+    mainBtn.textContent = brewTimerRunning ? "Pause" : "Start";
+    mainBtn.setAttribute("aria-label", brewTimerRunning ? "Pause timer" : "Start timer");
+  }
+  if (!resetBtn) return;
+  const canReset = brewTimerRunning || brewTimerSeconds > 0;
+  resetBtn.hidden = !canReset;
+  resetBtn.disabled = !canReset;
+  resetBtn.setAttribute("aria-disabled", String(!canReset));
+  if (!canReset) {
+    resetBtn.classList.remove("holding");
+    if (brewTimerResetHoldHandle) {
+      window.clearTimeout(brewTimerResetHoldHandle);
+      brewTimerResetHoldHandle = null;
+    }
+    brewTimerResetTriggered = false;
+  }
 }
 
 function stopBrewTimer() {
@@ -159,13 +183,13 @@ function stopBrewTimer() {
     brewTimerTickHandle = null;
   }
   brewTimerRunning = false;
-  setTimerRunningState(false);
+  setTimerRunningState();
 }
 
 function startBrewTimer() {
   if (brewTimerRunning) return;
   brewTimerRunning = true;
-  setTimerRunningState(true);
+  setTimerRunningState();
   brewTimerTickHandle = window.setInterval(() => {
     brewTimerSeconds += 1;
     syncFormTimerDisplay();
@@ -176,29 +200,79 @@ function resetBrewTimer() {
   stopBrewTimer();
   brewTimerSeconds = 0;
   syncFormTimerDisplay();
+  setTimerRunningState();
 }
 
 function bindBrewTimerControls() {
-  const startBtn = document.getElementById("brew-timer-start");
-  const pauseBtn = document.getElementById("brew-timer-pause");
+  const mainBtn = document.getElementById("brew-timer-main");
   const resetBtn = document.getElementById("brew-timer-reset");
-  if (startBtn) {
-    startBtn.addEventListener("click", () => {
+  if (mainBtn) {
+    mainBtn.addEventListener("click", () => {
+      if (brewTimerRunning) {
+        stopBrewTimer();
+        syncFormTimerDisplay();
+        return;
+      }
       startBrewTimer();
     });
   }
-  if (pauseBtn) {
-    pauseBtn.addEventListener("click", () => {
-      stopBrewTimer();
-      syncFormTimerDisplay();
-    });
-  }
   if (resetBtn) {
+    const startResetHold = () => {
+      if (resetBtn.disabled) return;
+      resetBtn.classList.remove("hold-failed");
+      resetBtn.classList.add("holding");
+      if (brewTimerResetHoldHandle) {
+        window.clearTimeout(brewTimerResetHoldHandle);
+      }
+      brewTimerResetTriggered = false;
+      brewTimerResetHoldHandle = window.setTimeout(() => {
+        brewTimerResetHoldHandle = null;
+        brewTimerResetTriggered = true;
+        resetBtn.classList.remove("holding");
+        resetBrewTimer();
+      }, TIMER_RESET_HOLD_MS);
+    };
+    const endResetHold = () => {
+      if (brewTimerResetHoldHandle) {
+        window.clearTimeout(brewTimerResetHoldHandle);
+        brewTimerResetHoldHandle = null;
+      }
+      resetBtn.classList.remove("holding");
+      if (!brewTimerResetTriggered && !resetBtn.disabled) {
+        resetBtn.classList.add("hold-failed");
+        window.setTimeout(() => resetBtn.classList.remove("hold-failed"), 220);
+      }
+      brewTimerResetTriggered = false;
+    };
+    resetBtn.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      startResetHold();
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach((eventName) => {
+      resetBtn.addEventListener(eventName, endResetHold);
+    });
+    resetBtn.addEventListener("keydown", (event) => {
+      if (event.repeat) return;
+      if (event.key !== " " && event.key !== "Enter") return;
+      event.preventDefault();
+      startResetHold();
+    });
+    resetBtn.addEventListener("keyup", (event) => {
+      if (event.key !== " " && event.key !== "Enter") return;
+      event.preventDefault();
+      endResetHold();
+    });
     resetBtn.addEventListener("click", () => {
-      resetBrewTimer();
+      if (!resetBtn.disabled) {
+        resetBtn.classList.add("hold-failed");
+        window.setTimeout(() => resetBtn.classList.remove("hold-failed"), 180);
+      }
+    });
+    resetBtn.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
     });
   }
-  setTimerRunningState(false);
+  setTimerRunningState();
 }
 
 function extractMeaningfulNotes(notes) {
@@ -264,39 +338,91 @@ function buildInsightPromptContext(brew, scopedKnowledge, fallbackText) {
   return parts.join("\n");
 }
 
-async function requestGptMiniInsight(brew, fallbackText, scopedKnowledge) {
+function resolveAiProvider(ai) {
+  const model = String(ai.model || "").toLowerCase();
+  const key = String(ai.apiKey || "");
+  if (key.startsWith("AIza") || model.startsWith("gemini")) return "gemini";
+  return "openai";
+}
+
+async function requestAiInsight(brew, fallbackText, scopedKnowledge) {
   const ai = loadAiSettings();
   if (!ai.enabled || !ai.apiKey) return fallbackText;
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 9000);
+  const provider = resolveAiProvider(ai);
+  const promptContext = buildInsightPromptContext(brew, scopedKnowledge, fallbackText);
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${ai.apiKey}`
-      },
-      body: JSON.stringify({
-        model: ai.model || "gpt-4o-mini",
-        temperature: 0.4,
-        max_tokens: 140,
-        messages: [
-          {
-            role: "system",
-            content:
-              "你是咖啡萃取教练。输出中文，1-2句，直接给可执行微调建议。禁止出现技术词：RAG、模型、文档源、检索。"
+    let response;
+    if (provider === "gemini") {
+      const model = ai.model || "gemini-2.0-flash";
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(ai.apiKey)}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [
+              {
+                text: "你是咖啡萃取教练。输出中文，1-2句，直接给可执行微调建议。禁止出现技术词：RAG、模型、文档源、检索。"
+              }
+            ]
           },
-          {
-            role: "user",
-            content: buildInsightPromptContext(brew, scopedKnowledge, fallbackText)
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: promptContext }]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 140
           }
-        ]
-      }),
-      signal: controller.signal
-    });
+        }),
+        signal: controller.signal
+      });
+    } else {
+      response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${ai.apiKey}`
+        },
+        body: JSON.stringify({
+          model: ai.model || "gpt-4o-mini",
+          temperature: 0.4,
+          max_tokens: 140,
+          messages: [
+            {
+              role: "system",
+              content:
+                "你是咖啡萃取教练。输出中文，1-2句，直接给可执行微调建议。禁止出现技术词：RAG、模型、文档源、检索。"
+            },
+            {
+              role: "user",
+              content: promptContext
+            }
+          ]
+        }),
+        signal: controller.signal
+      });
+    }
     if (!response.ok) return fallbackText;
     const data = await response.json();
-    const content = data && data.choices && data.choices[0] && data.choices[0].message ? String(data.choices[0].message.content || "").trim() : "";
+    let content = "";
+    if (provider === "gemini") {
+      const parts =
+        data && data.candidates && data.candidates[0] && data.candidates[0].content && Array.isArray(data.candidates[0].content.parts)
+          ? data.candidates[0].content.parts
+          : [];
+      content = parts
+        .map(part => String((part && part.text) || "").trim())
+        .filter(Boolean)
+        .join(" ");
+    } else {
+      content = data && data.choices && data.choices[0] && data.choices[0].message ? String(data.choices[0].message.content || "").trim() : "";
+    }
     if (!content) return fallbackText;
     return content.replace(/\s+/g, " ").trim();
   } catch {
@@ -312,7 +438,7 @@ function applyInsightText(insightBody, brew) {
   const scopedKnowledge = pickScopedKnowledge(brew, 2);
   const requestKey = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   insightBody.setAttribute("data-request-key", requestKey);
-  requestGptMiniInsight(brew, fallbackText, scopedKnowledge).then(text => {
+  requestAiInsight(brew, fallbackText, scopedKnowledge).then(text => {
     if (!insightBody.isConnected) return;
     if (insightBody.getAttribute("data-request-key") !== requestKey) return;
     insightBody.textContent = text || fallbackText;
@@ -686,6 +812,10 @@ export function bindBrewsUi() {
   bindBrewTimerControls();
   stopBrewTimer();
   syncFormTimerDisplay();
+  const dateInput = document.getElementById("brew-date");
+  if (dateInput && !dateInput.value) {
+    dateInput.value = getTodayDateString();
+  }
   renderBrews(list, loadBrews());
 
   document.addEventListener("beans-updated", () => {
@@ -726,7 +856,7 @@ export function bindBrewsUi() {
 
     const brews = loadBrews();
     const base = {
-      date: dateInput.value || new Date().toISOString().slice(0, 10),
+      date: dateInput.value || getTodayDateString(),
       method: methodInput.value,
       beanId: beanSelect.value || "",
       coffeeMachine: machineInput ? machineInput.value : "",
@@ -772,6 +902,9 @@ export function bindBrewsUi() {
     editingId = null;
     resetBrewTimer();
     form.reset();
+    if (dateInput) {
+      dateInput.value = getTodayDateString();
+    }
     syncBrewScoreRatingUi();
     syncFormTimerDisplay();
     renderBeansOptions(beanSelect);
@@ -869,12 +1002,16 @@ export function bindHomeBrewsPreview() {
   document.addEventListener("brews-updated", apply);
 }
 export function refillLastBrewIfConfirmed() {
+  const dateInput = document.getElementById("brew-date");
+  const today = getTodayDateString();
+  if (dateInput) {
+    dateInput.value = today;
+  }
   const brews = loadBrews();
   if (!brews.length) return;
   const confirmed = window.confirm("Refill with the data from last time?");
   if (!confirmed) return;
   const last = brews[0];
-  const dateInput = document.getElementById("brew-date");
   const methodInput = document.getElementById("brew-method");
   const beanSelect = document.getElementById("brew-bean");
   const machineSelect = document.getElementById("brew-machine");
@@ -892,7 +1029,7 @@ export function refillLastBrewIfConfirmed() {
   const bodySelect = document.getElementById("body-rating");
   const aftertasteSelect = document.getElementById("aftertaste-rating");
   const notesInput = document.getElementById("brew-notes");
-  if (dateInput) dateInput.value = last.date || "";
+  if (dateInput) dateInput.value = today;
   if (methodInput) methodInput.value = last.method || "espresso";
   if (beanSelect) beanSelect.value = last.beanId || "";
   if (machineSelect) machineSelect.value = last.coffeeMachine || "";

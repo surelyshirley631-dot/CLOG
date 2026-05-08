@@ -84,6 +84,93 @@ function summarizeScopes(entries) {
   return Array.from(scopeMap.values()).sort((a, b) => String(a.scopeName).localeCompare(String(b.scopeName)));
 }
 
+function stripMediaDeep(value) {
+  if (Array.isArray(value)) {
+    return value.map(item => stripMediaDeep(item));
+  }
+  if (!value || typeof value !== "object") {
+    if (typeof value === "string") {
+      const maybeBase64 = value.startsWith("data:image/") || /^[A-Za-z0-9+/=\s]{4000,}$/.test(value);
+      return maybeBase64 ? "" : value;
+    }
+    return value;
+  }
+  const next = {};
+  Object.keys(value).forEach(key => {
+    const lower = key.toLowerCase();
+    if (lower.includes("photo") || lower.includes("image") || lower.includes("avatar") || lower.includes("thumbnail") || lower.includes("dataurl")) {
+      next[key] = "";
+      return;
+    }
+    next[key] = stripMediaDeep(value[key]);
+  });
+  return next;
+}
+
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("image-load-failed"));
+    image.src = dataUrl;
+  });
+}
+
+async function compressDataUrl(dataUrl) {
+  if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return dataUrl;
+  if (dataUrl.length < 300000) return dataUrl;
+  try {
+    const image = await loadImageFromDataUrl(dataUrl);
+    const edgeSteps = [1600, 1280, 1024, 900, 768];
+    const qualitySteps = [0.82, 0.72, 0.62, 0.52, 0.44];
+    let best = dataUrl;
+    for (const maxEdge of edgeSteps) {
+      const ratio = Math.min(1, maxEdge / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * ratio));
+      const height = Math.max(1, Math.round(image.height * ratio));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+      ctx.drawImage(image, 0, 0, width, height);
+      for (const quality of qualitySteps) {
+        const compressed = canvas.toDataURL("image/jpeg", quality);
+        if (compressed.length < best.length) {
+          best = compressed;
+        }
+      }
+    }
+    return best;
+  } catch {
+    return dataUrl;
+  }
+}
+
+async function optimizeImportMedia(value, parentKey = "") {
+  if (Array.isArray(value)) {
+    const items = [];
+    for (const item of value) {
+      items.push(await optimizeImportMedia(item, parentKey));
+    }
+    return items;
+  }
+  if (!value || typeof value !== "object") {
+    const maybeMediaKey =
+      parentKey.includes("photo") || parentKey.includes("image") || parentKey.includes("avatar") || parentKey.includes("thumbnail") || parentKey.includes("dataurl");
+    if (typeof value === "string" && (value.startsWith("data:image/") || maybeMediaKey)) {
+      return compressDataUrl(value);
+    }
+    return value;
+  }
+  const next = {};
+  const keys = Object.keys(value);
+  for (const key of keys) {
+    next[key] = await optimizeImportMedia(value[key], key.toLowerCase());
+  }
+  return next;
+}
+
 function setHeaderFor(targetId) {
   const title = document.getElementById("app-title");
   const subtitle = document.querySelector(".app-subtitle");
@@ -227,20 +314,42 @@ function initSettings() {
       const file = importInput.files && importInput.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         try {
           const raw = String(reader.result || "");
           const cleaned = raw.replace(/^\uFEFF/, "").trim();
           const parsed = JSON.parse(cleaned || "{}");
-          const result = importAll(parsed);
-          if (result && result.mediaStripped) {
-            window.alert("Data imported. Some photos were removed to fit iOS storage limits. Reloading now.");
-          } else {
-            window.alert("Data imported. Reloading to apply changes.");
+          try {
+            const result = importAll(parsed);
+            if (result && result.mediaStripped) {
+              window.alert("Data imported. Large images were auto-removed to fit storage limits. Reloading now.");
+            } else {
+              window.alert("Data imported. Reloading to apply changes.");
+            }
+            window.location.reload();
+          } catch {
+            const optimized = await optimizeImportMedia(parsed);
+            try {
+              const result = importAll(optimized);
+              if (result && result.mediaStripped) {
+                window.alert("Data imported. Images were optimized to fit browser storage limits. Reloading now.");
+              } else {
+                window.alert("Data imported with image optimization. Reloading now.");
+              }
+              window.location.reload();
+            } catch {
+              const sanitized = stripMediaDeep(parsed);
+              const result = importAll(sanitized);
+              if (result && result.mediaStripped) {
+                window.alert("Data imported after final fallback media cleanup. Reloading now.");
+              } else {
+                window.alert("Data imported after final fallback processing. Reloading now.");
+              }
+              window.location.reload();
+            }
           }
-          window.location.reload();
         } catch {
-          window.alert("Import failed. Please use a CLOG export JSON, or remove large photos and try again.");
+          window.alert("Import failed. Please use a valid CLOG JSON export.");
         }
       };
       reader.readAsText(file);
@@ -277,10 +386,10 @@ function initSettings() {
     if (!scopes.length) {
       const empty = document.createElement("div");
       empty.className = "knowledge-empty";
-      empty.textContent = "还没有上传范围。先上传文件后再选择范围。";
+      empty.textContent = "No scope uploaded yet. Upload a file first, then select scopes.";
       scopeList.appendChild(empty);
       if (scopeHint) {
-        scopeHint.textContent = "Insight 只会在你勾选的范围中检索建议。";
+        scopeHint.textContent = "Insight only searches within the scopes you select.";
       }
       return;
     }
@@ -306,7 +415,7 @@ function initSettings() {
       name.textContent = scope.scopeName;
       const meta = document.createElement("span");
       meta.className = "knowledge-scope-meta";
-      meta.textContent = `${scope.count} 条`;
+      meta.textContent = `${scope.count} entries`;
       row.appendChild(checkbox);
       row.appendChild(name);
       row.appendChild(meta);
@@ -314,7 +423,7 @@ function initSettings() {
     });
     if (scopeHint) {
       const selectedCount = scopes.filter(scope => selected.has(scope.scopeId)).length;
-      scopeHint.textContent = selectedCount > 0 ? `当前已选 ${selectedCount} 个范围，Insight 仅在这些范围内检索。` : "当前未选择范围，Insight 不会使用知识条目。";
+      scopeHint.textContent = selectedCount > 0 ? `${selectedCount} scope(s) selected. Insight only searches within selected scopes.` : "No scope selected. Insight will not use uploaded knowledge entries.";
     }
   };
 
@@ -322,7 +431,7 @@ function initSettings() {
     uploadBtn.addEventListener("click", () => {
       const file = uploadInput.files && uploadInput.files[0];
       if (!file) {
-        window.alert("请先选择一个 .txt / .md / .json 文件。");
+        window.alert("Please select a .txt / .md / .json file first.");
         return;
       }
       const inputName = scopeNameInput ? scopeNameInput.value.trim() : "";
@@ -333,7 +442,7 @@ function initSettings() {
       reader.onload = () => {
         const chunks = extractKnowledgeChunks(String(reader.result || ""));
         if (!chunks.length) {
-          window.alert("文件内容为空，未导入。");
+          window.alert("The file is empty. Nothing was imported.");
           return;
         }
         const now = new Date().toISOString();
@@ -355,7 +464,7 @@ function initSettings() {
         if (scopeNameInput) scopeNameInput.value = "";
         uploadInput.value = "";
         renderScopeList();
-        window.alert(`已上传 ${chunks.length} 条内容到范围「${scopeName}」。`);
+        window.alert(`Uploaded ${chunks.length} entry(ies) into scope "${scopeName}".`);
       };
       reader.readAsText(file);
     });
@@ -381,29 +490,29 @@ function initSettings() {
   const renderAiSettings = () => {
     const settings = loadAiSettings();
     if (modelInput) {
-      modelInput.value = settings.model || "gpt-4o-mini";
+      modelInput.value = settings.model || "gemini-2.0-flash";
     }
     if (apiKeyInput) {
       apiKeyInput.value = settings.apiKey || "";
     }
     if (modelHint) {
       modelHint.textContent = settings.enabled
-        ? `已启用 ${settings.model}，Insight 会先尝试模型建议，失败时回退本地规则。`
-        : "未配置 Key 时，Insight 使用本地规则建议。";
+        ? `Enabled ${settings.model}. Insight first tries AI suggestions (Gemini/OpenAI), then falls back to local rules on failure.`
+        : "No API key configured. Insight uses local rule-based suggestions.";
     }
   };
 
   if (saveModelBtn) {
     saveModelBtn.addEventListener("click", () => {
-      const model = modelInput ? modelInput.value.trim() : "gpt-4o-mini";
+      const model = modelInput ? modelInput.value.trim() : "gemini-2.0-flash";
       const apiKey = apiKeyInput ? apiKeyInput.value.trim() : "";
       saveAiSettings({
         enabled: Boolean(apiKey),
-        model: model || "gpt-4o-mini",
+        model: model || "gemini-2.0-flash",
         apiKey
       });
       renderAiSettings();
-      window.alert(apiKey ? "已保存模型配置。" : "已清空 API Key，Insight 将使用本地规则。");
+      window.alert(apiKey ? "Model configuration saved." : "API key cleared. Insight will use local rules.");
     });
   }
 

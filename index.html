@@ -207,10 +207,6 @@
 <option value="high">High</option>
 </select>
 </div>
-<div class="brew-spec-item brew-spec-technical brew-spec-time">
-<label for="extraction-time">Time (s)</label>
-<input type="number" id="extraction-time" min="0" step="1">
-</div>
 <div class="brew-spec-item brew-spec-technical brew-spec-dose-yield">
 <label for="dose-grams">Dose / Yield (g)</label>
 <div class="brew-dual-values">
@@ -219,15 +215,19 @@
 <input type="number" id="yield-grams" min="0" step="0.1" placeholder="Yield">
 </div>
 </div>
+<div class="brew-spec-item brew-spec-technical brew-spec-time">
+<label for="extraction-time">Time (s)</label>
+<input type="number" id="extraction-time" min="0" step="1">
+</div>
 <div class="brew-spec-item brew-spec-technical brew-spec-timer">
 <label for="brew-timer-value">Timer</label>
 <div class="brew-timer-display">
 <span id="brew-timer-value">00:00</span>
 </div>
 <div class="brew-timer-actions">
-<button type="button" id="brew-timer-start" class="secondary-button brew-timer-btn">Start</button>
-<button type="button" id="brew-timer-pause" class="secondary-button brew-timer-btn">Pause</button>
-<button type="button" id="brew-timer-reset" class="ghost-button brew-timer-btn">Reset</button>
+<button type="button" id="brew-timer-main" class="primary-button brew-timer-btn brew-timer-main-btn">Start</button>
+<button type="button" id="brew-timer-reset" class="ghost-button brew-timer-btn brew-timer-reset-btn" aria-disabled="true">Reset</button>
+<small class="brew-timer-reset-hint">Hold to reset</small>
 </div>
 </div>
 </section>
@@ -539,22 +539,22 @@ Aroma"></textarea>
 <button type="button" id="knowledge-clear-selection" class="ghost-button">Clear selection</button>
 </div>
 <div id="knowledge-scope-list" class="knowledge-scope-list"></div>
-<p id="knowledge-scope-hint" class="settings-hint">Insight 只会在你勾选的范围中检索建议。</p>
+<p id="knowledge-scope-hint" class="settings-hint">Insight only searches within the scopes you select.</p>
 </section>
 <section class="card">
 <h3>Insight model</h3>
 <div class="field-group full-width">
 <label for="insight-model-name">Model</label>
-<input type="text" id="insight-model-name" value="gpt-4o-mini">
+<input type="text" id="insight-model-name" value="gemini-2.0-flash">
 </div>
 <div class="field-group full-width">
 <label for="insight-api-key">API Key</label>
-<input type="password" id="insight-api-key" placeholder="sk-...">
+<input type="password" id="insight-api-key" placeholder="AIza... / sk-...">
 </div>
 <div class="settings-actions">
 <button type="button" id="insight-save-settings" class="secondary-button">Save model config</button>
 </div>
-<p id="insight-model-hint" class="settings-hint">未配置 Key 时，Insight 使用本地规则建议。</p>
+<p id="insight-model-hint" class="settings-hint">Supports Gemini and OpenAI. If no key is configured, Insight uses local rule-based suggestions.</p>
 </section>
 </section>
 </main>

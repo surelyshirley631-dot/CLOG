@@ -75,12 +75,12 @@ function normalizeSelectedKnowledgeScopes(scopeIds) {
 
 function normalizeAiSettings(value) {
   const source = value && typeof value === "object" ? value : {};
-  const model = source.model ? String(source.model).trim() : "gpt-4o-mini";
+  const model = source.model ? String(source.model).trim() : "gemini-2.0-flash";
   const apiKey = source.apiKey ? String(source.apiKey).trim() : "";
   const enabled = Boolean(source.enabled && apiKey);
   return {
     enabled,
-    model: model || "gpt-4o-mini",
+    model: model || "gemini-2.0-flash",
     apiKey
   };
 }

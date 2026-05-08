@@ -399,7 +399,7 @@ h3 {
 }
 
 .brew-dual-values input {
-  min-height: 22px;
+  min-height: 24px;
   width: 100%;
   border-radius: 12px;
   background: #fdfbf7 !important;
@@ -417,7 +417,7 @@ h3 {
 }
 
 .brew-timer-display {
-  min-height: 36px;
+  min-height: 34px;
   width: 100%;
   border-radius: 12px;
   background: #fdfbf7;
@@ -425,24 +425,71 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 800;
   letter-spacing: 0.02em;
 }
 
 .brew-timer-actions {
-  margin-top: 6px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 6px;
 }
 
 .brew-timer-btn {
   min-width: 0;
   width: 100%;
-  padding: 5px 6px;
-  font-size: 0.72rem;
   line-height: 1.1;
+}
+
+.brew-timer-main-btn {
+  min-height: 42px;
+  padding: 10px 14px;
+  font-size: 0.94rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.brew-timer-reset-btn {
+  align-self: center;
+  min-height: 30px;
+  width: auto;
+  min-width: 84px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  opacity: 0.62;
+  border-color: rgba(93, 64, 55, 0.14);
+}
+
+.brew-timer-reset-btn[hidden] {
+  display: none;
+}
+
+.brew-timer-reset-btn.holding {
+  opacity: 1;
+  border-color: rgba(229, 57, 53, 0.55);
+  color: #8e2b2b;
+  background: rgba(229, 57, 53, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(229, 57, 53, 0.2);
+}
+
+.brew-timer-reset-btn.hold-failed {
+  transform: scale(0.98);
+}
+
+.brew-timer-reset-hint {
+  display: block;
+  text-align: center;
+  color: rgba(93, 64, 55, 0.56);
+  font-size: 0.62rem;
+  line-height: 1.2;
+}
+
+.brew-spec-timer {
+  justify-content: space-between;
+  gap: 6px;
 }
 
 .brew-spec-item input:focus,
@@ -1446,16 +1493,37 @@ legend {
     order: 3;
   }
 
-  .brew-spec-time {
+  .brew-spec-dose-yield {
     order: 4;
   }
 
-  .brew-spec-dose-yield {
+  .brew-spec-time {
     order: 5;
   }
 
   .brew-spec-timer {
     order: 6;
+  }
+
+  .brew-timer-display {
+    min-height: 38px;
+    font-size: 1rem;
+  }
+
+  .brew-timer-actions {
+    margin-top: 6px;
+    gap: 8px;
+  }
+
+  .brew-timer-main-btn {
+    min-height: 54px;
+    font-size: 1.04rem;
+  }
+
+  .brew-timer-reset-btn {
+    min-height: 34px;
+    min-width: 90px;
+    font-size: 0.74rem;
   }
 
   .brew-notes-panel {
