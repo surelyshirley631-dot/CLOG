@@ -221,7 +221,17 @@ export function renderBeansOptions(select) {
 function renderBeans(list, beans) {
   list.innerHTML = "";
   if (!beans.length) return;
-  beans.forEach(bean => {
+  const sortedBeans = [...beans].sort((a, b) => {
+    const aDate = a && a.openDate ? Date.parse(a.openDate) : NaN;
+    const bDate = b && b.openDate ? Date.parse(b.openDate) : NaN;
+    const aValid = Number.isFinite(aDate);
+    const bValid = Number.isFinite(bDate);
+    if (aValid && bValid) return bDate - aDate;
+    if (aValid) return -1;
+    if (bValid) return 1;
+    return String(a && a.name ? a.name : "").localeCompare(String(b && b.name ? b.name : ""));
+  });
+  sortedBeans.forEach(bean => {
     const li = document.createElement("li");
     li.className = "item";
     li.dataset.beanId = bean.id;

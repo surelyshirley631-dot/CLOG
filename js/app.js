@@ -107,6 +107,39 @@ function stripMediaDeep(value) {
   return next;
 }
 
+function isBeansPath(pathSegments) {
+  return pathSegments.some(seg => seg === "beans" || seg === "clog_beans");
+}
+
+function stripNonBeanMediaDeep(value, path = []) {
+  if (Array.isArray(value)) {
+    return value.map(item => stripNonBeanMediaDeep(item, path));
+  }
+  const inBeans = isBeansPath(path);
+  if (!value || typeof value !== "object") {
+    if (typeof value === "string") {
+      const maybeBase64 = value.startsWith("data:image/") || /^[A-Za-z0-9+/=\s]{4000,}$/.test(value);
+      if (maybeBase64 && !inBeans) return "";
+    }
+    return value;
+  }
+  const next = {};
+  Object.keys(value).forEach(key => {
+    const lower = key.toLowerCase();
+    const nextPath = [...path, lower];
+    if (lower.includes("photo") || lower.includes("image") || lower.includes("avatar") || lower.includes("thumbnail") || lower.includes("dataurl")) {
+      if (isBeansPath(nextPath)) {
+        next[key] = stripNonBeanMediaDeep(value[key], nextPath);
+      } else {
+        next[key] = "";
+      }
+      return;
+    }
+    next[key] = stripNonBeanMediaDeep(value[key], nextPath);
+  });
+  return next;
+}
+
 function loadImageFromDataUrl(dataUrl) {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -330,13 +363,20 @@ function initSettings() {
               window.alert("Data merged. Images were optimized to fit local storage limits. Reloading now.");
               window.location.reload();
             } catch {
-              const sanitized = stripMediaDeep(parsed);
               try {
-                importAll(sanitized, { mode: "merge" });
-                window.alert("Data merged with minimal media fallback. Existing photos were preserved where possible. Reloading now.");
+                const beanPreferred = stripNonBeanMediaDeep(parsed);
+                importAll(beanPreferred, { mode: "merge" });
+                window.alert("Data merged with fallback cleanup. Bean photos were prioritized and preserved when possible. Reloading now.");
                 window.location.reload();
               } catch {
-                window.alert("Import failed: local storage limit reached. Please reduce image size/count and try again.");
+                const sanitized = stripMediaDeep(parsed);
+                try {
+                  importAll(sanitized, { mode: "merge" });
+                  window.alert("Data merged after full media cleanup. Please re-import a smaller image backup if you need photos.");
+                  window.location.reload();
+                } catch {
+                  window.alert("Import failed: local storage limit reached. Please reduce image size/count and try again.");
+                }
               }
             }
           }
