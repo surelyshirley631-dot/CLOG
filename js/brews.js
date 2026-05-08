@@ -130,29 +130,37 @@ function formatMass(value) {
 function formatSeconds(value) {
   const n = toNumber(value);
   if (n === null) return "Not Set";
-  return `${Math.max(0, Math.round(n))}s`;
+  return `${Math.max(0, n).toFixed(3)}s`;
 }
 
-function formatTimer(value) {
-  const n = toNumber(value);
-  if (n === null) return "--:--";
-  const total = Math.max(0, Math.round(n));
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+function formatTimerFromMs(msValue) {
+  const totalMs = Math.max(0, Math.round(msValue));
+  const mins = Math.floor(totalMs / 60000);
+  const secs = Math.floor((totalMs % 60000) / 1000);
+  const millis = totalMs % 1000;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
 }
 
-let brewTimerSeconds = 0;
+function formatTimer(valueSeconds) {
+  const n = toNumber(valueSeconds);
+  if (n === null) return "--:--.---";
+  return formatTimerFromMs(n * 1000);
+}
+
+let brewTimerElapsedMs = 0;
 let brewTimerRunning = false;
 let brewTimerTickHandle = null;
-let brewTimerResetHoldHandle = null;
-let brewTimerResetTriggered = false;
-const TIMER_RESET_HOLD_MS = 700;
+let brewTimerStartedAtMs = 0;
+
+function getCurrentTimerElapsedMs() {
+  if (!brewTimerRunning) return brewTimerElapsedMs;
+  return brewTimerElapsedMs + (performance.now() - brewTimerStartedAtMs);
+}
 
 function syncFormTimerDisplay() {
   const timerValue = document.getElementById("brew-timer-value");
   if (!timerValue) return;
-  timerValue.textContent = formatTimer(brewTimerSeconds);
+  timerValue.textContent = formatTimerFromMs(getCurrentTimerElapsedMs());
 }
 
 function setTimerRunningState() {
@@ -163,21 +171,16 @@ function setTimerRunningState() {
     mainBtn.setAttribute("aria-label", brewTimerRunning ? "Pause timer" : "Start timer");
   }
   if (!resetBtn) return;
-  const canReset = brewTimerRunning || brewTimerSeconds > 0;
+  const canReset = brewTimerRunning || brewTimerElapsedMs > 0;
   resetBtn.hidden = !canReset;
   resetBtn.disabled = !canReset;
   resetBtn.setAttribute("aria-disabled", String(!canReset));
-  if (!canReset) {
-    resetBtn.classList.remove("holding");
-    if (brewTimerResetHoldHandle) {
-      window.clearTimeout(brewTimerResetHoldHandle);
-      brewTimerResetHoldHandle = null;
-    }
-    brewTimerResetTriggered = false;
-  }
 }
 
 function stopBrewTimer() {
+  if (brewTimerRunning) {
+    brewTimerElapsedMs = getCurrentTimerElapsedMs();
+  }
   if (brewTimerTickHandle) {
     window.clearInterval(brewTimerTickHandle);
     brewTimerTickHandle = null;
@@ -189,16 +192,17 @@ function stopBrewTimer() {
 function startBrewTimer() {
   if (brewTimerRunning) return;
   brewTimerRunning = true;
-  setTimerRunningState();
+  brewTimerStartedAtMs = performance.now();
   brewTimerTickHandle = window.setInterval(() => {
-    brewTimerSeconds += 1;
     syncFormTimerDisplay();
-  }, 1000);
+  }, 31);
+  setTimerRunningState();
+  syncFormTimerDisplay();
 }
 
 function resetBrewTimer() {
   stopBrewTimer();
-  brewTimerSeconds = 0;
+  brewTimerElapsedMs = 0;
   syncFormTimerDisplay();
   setTimerRunningState();
 }
@@ -217,59 +221,10 @@ function bindBrewTimerControls() {
     });
   }
   if (resetBtn) {
-    const startResetHold = () => {
-      if (resetBtn.disabled) return;
-      resetBtn.classList.remove("hold-failed");
-      resetBtn.classList.add("holding");
-      if (brewTimerResetHoldHandle) {
-        window.clearTimeout(brewTimerResetHoldHandle);
-      }
-      brewTimerResetTriggered = false;
-      brewTimerResetHoldHandle = window.setTimeout(() => {
-        brewTimerResetHoldHandle = null;
-        brewTimerResetTriggered = true;
-        resetBtn.classList.remove("holding");
-        resetBrewTimer();
-      }, TIMER_RESET_HOLD_MS);
-    };
-    const endResetHold = () => {
-      if (brewTimerResetHoldHandle) {
-        window.clearTimeout(brewTimerResetHoldHandle);
-        brewTimerResetHoldHandle = null;
-      }
-      resetBtn.classList.remove("holding");
-      if (!brewTimerResetTriggered && !resetBtn.disabled) {
-        resetBtn.classList.add("hold-failed");
-        window.setTimeout(() => resetBtn.classList.remove("hold-failed"), 220);
-      }
-      brewTimerResetTriggered = false;
-    };
-    resetBtn.addEventListener("pointerdown", (event) => {
-      if (event.pointerType === "mouse" && event.button !== 0) return;
-      startResetHold();
-    });
-    ["pointerup", "pointerleave", "pointercancel"].forEach((eventName) => {
-      resetBtn.addEventListener(eventName, endResetHold);
-    });
-    resetBtn.addEventListener("keydown", (event) => {
-      if (event.repeat) return;
-      if (event.key !== " " && event.key !== "Enter") return;
-      event.preventDefault();
-      startResetHold();
-    });
-    resetBtn.addEventListener("keyup", (event) => {
-      if (event.key !== " " && event.key !== "Enter") return;
-      event.preventDefault();
-      endResetHold();
-    });
     resetBtn.addEventListener("click", () => {
       if (!resetBtn.disabled) {
-        resetBtn.classList.add("hold-failed");
-        window.setTimeout(() => resetBtn.classList.remove("hold-failed"), 180);
+        resetBrewTimer();
       }
-    });
-    resetBtn.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
     });
   }
   setTimerRunningState();
