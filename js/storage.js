@@ -46,7 +46,7 @@ function normalizeBeans(beans) {
         : [bean && bean.roaster, bean && bean.roastDate ? `Roasted ${bean.roastDate}` : "", typeof (bean && bean.initialWeight) === "number" ? `Initial ${bean.initialWeight}g` : ""]
             .filter(Boolean)
             .join(" | "),
-    photoDataUrl: bean && bean.photoDataUrl ? String(bean.photoDataUrl) : ""
+    photoDataUrl: bean && (bean.photoDataUrl || bean.photo) ? String(bean.photoDataUrl || bean.photo) : ""
   }));
 }
 
@@ -85,6 +85,151 @@ function normalizeAiSettings(value) {
   };
 }
 
+function normalizeCafes(cafes) {
+  return asArray(cafes).map(cafe => {
+    const source = cafe && typeof cafe === "object" ? cafe : {};
+    const photo = typeof source.photo === "string" ? source.photo : typeof source.photoDataUrl === "string" ? source.photoDataUrl : null;
+    return {
+      ...source,
+      id: source.id ? String(source.id) : `cafe_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      photo: photo || null
+    };
+  });
+}
+
+function normalizeGrinders(grinders) {
+  return asArray(grinders).map(grinder => {
+    const source = grinder && typeof grinder === "object" ? grinder : {};
+    return {
+      ...source,
+      id: source.id ? String(source.id) : `grinder_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      name: source.name ? String(source.name) : "",
+      photoDataUrl: source.photoDataUrl ? String(source.photoDataUrl) : ""
+    };
+  });
+}
+
+function normalizeMachines(machines) {
+  return asArray(machines).map(machine => {
+    const source = machine && typeof machine === "object" ? machine : {};
+    return {
+      ...source,
+      id: source.id ? String(source.id) : `machine_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      name: source.name ? String(source.name) : "",
+      photoDataUrl: source.photoDataUrl ? String(source.photoDataUrl) : ""
+    };
+  });
+}
+
+function asKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function mergeItemWithMedia(existing, incoming, mediaFields = []) {
+  const merged = { ...existing, ...incoming };
+  mediaFields.forEach(field => {
+    const incomingValue = incoming ? incoming[field] : undefined;
+    const existingValue = existing ? existing[field] : undefined;
+    if ((incomingValue === "" || incomingValue === null || incomingValue === undefined) && existingValue !== undefined) {
+      merged[field] = existingValue;
+    }
+  });
+  return merged;
+}
+
+function mergeByKey(existingItems, incomingItems, keyOf, mediaFields = []) {
+  const result = [];
+  const indexMap = new Map();
+  asArray(existingItems).forEach(item => {
+    const key = keyOf(item);
+    if (!key) return;
+    indexMap.set(key, result.length);
+    result.push(item);
+  });
+  asArray(incomingItems).forEach(item => {
+    const key = keyOf(item);
+    if (!key) {
+      result.push(item);
+      return;
+    }
+    if (!indexMap.has(key)) {
+      indexMap.set(key, result.length);
+      result.push(item);
+      return;
+    }
+    const idx = indexMap.get(key);
+    result[idx] = mergeItemWithMedia(result[idx], item, mediaFields);
+  });
+  return result;
+}
+
+function mergeImportPayload(payload) {
+  const current = exportAll();
+  const currentBrews = asArray(current.brews);
+  const currentCafes = normalizeCafes(current.cafes);
+  const currentBeans = normalizeBeans(current.beans);
+  const currentGrinders = normalizeGrinders(current.grinders);
+  const currentMachines = normalizeMachines(current.machines);
+  const currentKnowledge = normalizeKnowledgeEntries(current.knowledgeEntries);
+
+  const brews = mergeByKey(
+    currentBrews,
+    payload.brews,
+    brew => (brew && brew.id ? `id:${brew.id}` : `sig:${asKey(brew && brew.date)}|${asKey(brew && brew.method)}|${asKey(brew && brew.beanId)}|${asKey(brew && brew.notes).slice(0, 80)}`)
+  );
+  const cafes = mergeByKey(
+    currentCafes,
+    payload.cafes,
+    cafe => (cafe && cafe.id ? `id:${cafe.id}` : `sig:${asKey(cafe && cafe.name)}|${asKey(cafe && cafe.location)}`),
+    ["photo"]
+  );
+  const beans = mergeByKey(
+    currentBeans,
+    payload.beans,
+    bean => (bean && bean.id ? `id:${bean.id}` : `sig:${asKey(bean && bean.name)}|${asKey(bean && bean.openDate)}`),
+    ["photoDataUrl"]
+  );
+  const grinders = mergeByKey(
+    currentGrinders,
+    payload.grinders,
+    grinder => (grinder && grinder.id ? `id:${grinder.id}` : `sig:${asKey(grinder && grinder.name)}`),
+    ["photoDataUrl"]
+  );
+  const machines = mergeByKey(
+    currentMachines,
+    payload.machines,
+    machine => (machine && machine.id ? `id:${machine.id}` : `sig:${asKey(machine && machine.name)}`),
+    ["photoDataUrl"]
+  );
+  const knowledgeEntries = mergeByKey(
+    currentKnowledge,
+    payload.knowledgeEntries,
+    entry =>
+      entry && entry.id
+        ? `id:${entry.id}`
+        : `sig:${asKey(entry && entry.scopeId)}|${asKey(entry && entry.title)}|${asKey(entry && entry.content).slice(0, 100)}`
+  );
+  const selectedKnowledgeScopes = Array.from(
+    new Set([...normalizeSelectedKnowledgeScopes(current.selectedKnowledgeScopes), ...normalizeSelectedKnowledgeScopes(payload.selectedKnowledgeScopes)])
+  );
+  const aiSettings = normalizeAiSettings({
+    enabled: payload.aiSettings && payload.aiSettings.apiKey ? payload.aiSettings.enabled : current.aiSettings && current.aiSettings.enabled,
+    model: (payload.aiSettings && payload.aiSettings.model) || (current.aiSettings && current.aiSettings.model) || "gemini-2.0-flash",
+    apiKey: (payload.aiSettings && payload.aiSettings.apiKey) || (current.aiSettings && current.aiSettings.apiKey) || ""
+  });
+  return {
+    brews,
+    cafes,
+    beans,
+    grinders,
+    machines,
+    knowledgeEntries,
+    selectedKnowledgeScopes,
+    aiSettings,
+    importedAny: brews.length > 0 || cafes.length > 0 || beans.length > 0 || grinders.length > 0 || machines.length > 0 || knowledgeEntries.length > 0
+  };
+}
+
 function resolveImportArray(data, key) {
   if (!data || typeof data !== "object") return [];
   if (Array.isArray(data[key])) return data[key];
@@ -100,10 +245,10 @@ function resolveImportArray(data, key) {
 function buildImportPayload(raw) {
   const source = raw && typeof raw === "object" && raw.data && typeof raw.data === "object" ? raw.data : raw;
   const brews = asArray(resolveImportArray(source, "brews"));
-  const cafes = asArray(resolveImportArray(source, "cafes"));
+  const cafes = normalizeCafes(resolveImportArray(source, "cafes"));
   const beans = normalizeBeans(resolveImportArray(source, "beans"));
-  const grinders = asArray(resolveImportArray(source, "grinders"));
-  const machines = asArray(resolveImportArray(source, "machines"));
+  const grinders = normalizeGrinders(resolveImportArray(source, "grinders"));
+  const machines = normalizeMachines(resolveImportArray(source, "machines"));
   const knowledgeEntries = normalizeKnowledgeEntries(resolveImportArray(source, "knowledgeEntries"));
   const selectedKnowledgeScopes = normalizeSelectedKnowledgeScopes(resolveImportArray(source, "selectedKnowledgeScopes"));
   const aiSettings = normalizeAiSettings(source && typeof source === "object" ? source.aiSettings : {});
@@ -236,23 +381,20 @@ export function exportAll() {
   };
 }
 
-export function importAll(data) {
+export function importAll(data, options = {}) {
+  const mode = options && options.mode === "replace" ? "replace" : "merge";
   const payload = buildImportPayload(data);
   if (!payload.importedAny) {
     throw new Error("No compatible data found in import file");
   }
+  const finalPayload = mode === "merge" ? mergeImportPayload(payload) : payload;
   const snapshot = readStorageSnapshot();
   try {
-    persistPayload(payload);
-    return { mediaStripped: false };
-  } catch {
-    try {
-      persistPayload(stripMedia(payload));
-      return { mediaStripped: true };
-    } catch (error) {
-      restoreStorageSnapshot(snapshot);
-      throw error;
-    }
+    persistPayload(finalPayload);
+    return { mediaStripped: false, mode };
+  } catch (error) {
+    restoreStorageSnapshot(snapshot);
+    throw error;
   }
 }
 

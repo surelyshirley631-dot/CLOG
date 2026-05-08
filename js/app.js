@@ -320,32 +320,24 @@ function initSettings() {
           const cleaned = raw.replace(/^\uFEFF/, "").trim();
           const parsed = JSON.parse(cleaned || "{}");
           try {
-            const result = importAll(parsed);
-            if (result && result.mediaStripped) {
-              window.alert("Data imported. Large images were auto-removed to fit storage limits. Reloading now.");
-            } else {
-              window.alert("Data imported. Reloading to apply changes.");
-            }
+            importAll(parsed, { mode: "merge" });
+            window.alert("Data merged successfully. Reloading to apply changes.");
             window.location.reload();
           } catch {
             const optimized = await optimizeImportMedia(parsed);
             try {
-              const result = importAll(optimized);
-              if (result && result.mediaStripped) {
-                window.alert("Data imported. Images were optimized to fit browser storage limits. Reloading now.");
-              } else {
-                window.alert("Data imported with image optimization. Reloading now.");
-              }
+              importAll(optimized, { mode: "merge" });
+              window.alert("Data merged. Images were optimized to fit local storage limits. Reloading now.");
               window.location.reload();
             } catch {
               const sanitized = stripMediaDeep(parsed);
-              const result = importAll(sanitized);
-              if (result && result.mediaStripped) {
-                window.alert("Data imported after final fallback media cleanup. Reloading now.");
-              } else {
-                window.alert("Data imported after final fallback processing. Reloading now.");
+              try {
+                importAll(sanitized, { mode: "merge" });
+                window.alert("Data merged with minimal media fallback. Existing photos were preserved where possible. Reloading now.");
+                window.location.reload();
+              } catch {
+                window.alert("Import failed: local storage limit reached. Please reduce image size/count and try again.");
               }
-              window.location.reload();
             }
           }
         } catch {
