@@ -135,15 +135,16 @@ function formatSeconds(value) {
 
 function formatTimerFromMs(msValue) {
   const totalMs = Math.max(0, Math.round(msValue));
-  const mins = Math.floor(totalMs / 60000);
-  const secs = Math.floor((totalMs % 60000) / 1000);
-  const millis = totalMs % 1000;
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
+  const totalCentis = Math.floor(totalMs / 10);
+  const mins = Math.floor(totalCentis / 6000);
+  const secs = Math.floor((totalCentis % 6000) / 100);
+  const centis = totalCentis % 100;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(centis).padStart(2, "0")}`;
 }
 
 function formatTimer(valueSeconds) {
   const n = toNumber(valueSeconds);
-  if (n === null) return "--:--.---";
+  if (n === null) return "--:--.--";
   return formatTimerFromMs(n * 1000);
 }
 
