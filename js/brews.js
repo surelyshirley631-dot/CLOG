@@ -1016,6 +1016,17 @@ function buildFlavorSummary(brew) {
   return parts.join(" • ");
 }
 
+function compareBrewsByDateDesc(a, b) {
+  const aDate = Date.parse((a && a.date) || "");
+  const bDate = Date.parse((b && b.date) || "");
+  const aValid = Number.isFinite(aDate);
+  const bValid = Number.isFinite(bDate);
+  if (aValid && bValid && aDate !== bDate) return bDate - aDate;
+  if (aValid && !bValid) return -1;
+  if (!aValid && bValid) return 1;
+  return String((b && b.id) || "").localeCompare(String((a && a.id) || ""));
+}
+
 function renderBrews(list, brews, selectedDetailId = "") {
   list.innerHTML = "";
   if (!brews.length) return;
@@ -1023,8 +1034,9 @@ function renderBrews(list, brews, selectedDetailId = "") {
   const beans = getBeans();
   const isMainList = list.id === "brew-list";
   const isHomeList = list.id === "home-brew-list";
+  const displayBrews = isMainList ? [...brews].sort(compareBrewsByDateDesc) : brews;
 
-  brews.forEach(brew => {
+  displayBrews.forEach(brew => {
     const li = document.createElement("li");
     li.className = "item";
     if (isHomeList && selectedDetailId === brew.id) {
