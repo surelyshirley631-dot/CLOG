@@ -887,6 +887,7 @@ legend {
 .tab-panel {
   display: none;
   width: 100%;
+  backface-visibility: hidden;
 }
 
 .tab-panel.active {
@@ -900,6 +901,8 @@ legend {
 
 .app-main.is-panel-transitioning {
   overflow: hidden;
+  isolation: isolate;
+  perspective: 1200px;
 }
 
 .item-list {
@@ -1867,7 +1870,47 @@ legend {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  width: min(240px, 100%);
+  width: auto;
+  flex-shrink: 0;
+}
+
+.brew-insight-section {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.brew-insight-toggle {
+  min-width: 116px;
+  padding: 8px 14px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(93, 64, 55, 0.08);
+}
+
+.brew-insight-toggle.is-open {
+  background: rgba(255, 183, 77, 0.16);
+  border-color: rgba(255, 183, 77, 0.5);
+  color: #8c4b00;
+}
+
+.brew-insight-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.brew-insight-disabled {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: rgba(122, 94, 80, 0.72);
+  text-align: center;
 }
 
 .brew-detail-section-title {
@@ -1958,28 +2001,22 @@ legend {
 
 .brew-detail-notes-wrap {
   margin-top: 12px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(253, 251, 247, 0.98), rgba(247, 242, 233, 0.96));
+  border: 1px solid rgba(93, 64, 55, 0.08);
+  box-shadow: 0 12px 28px rgba(62, 39, 35, 0.06);
+  padding: 14px;
 }
 
 .brew-insight-card {
   width: 100%;
   border-radius: 12px;
   background: #fdfbf7;
-  border: 1px dashed #3e2723;
+  border: 1px dashed rgba(62, 39, 35, 0.78);
   padding: 12px;
   text-align: left;
-  opacity: 0;
-  transform: translateY(10px);
-  pointer-events: none;
-}
-
-.brew-insight-card.is-ready {
-  display: block;
-}
-
-.brew-insight-card.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1), transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top center;
+  box-shadow: 0 10px 24px rgba(62, 39, 35, 0.08);
 }
 
 .brew-insight-title {
@@ -2035,15 +2072,16 @@ legend {
 }
 
 .brew-notes-box {
-  border-radius: 12px;
+  border-radius: 14px;
   border: none;
-  background: #fdfbfa;
-  color: #4a3c33;
-  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #3f3028;
+  padding: 14px 16px;
   white-space: pre-wrap;
-  line-height: 1.45;
-  font-size: 0.9rem;
-  min-height: 74px;
+  line-height: 1.65;
+  font-size: 1.04rem;
+  font-weight: 500;
+  min-height: 88px;
 }
 
 .brew-legacy-profile {

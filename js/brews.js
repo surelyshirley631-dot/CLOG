@@ -523,6 +523,66 @@ function refreshLucideIcons(container) {
   lucideLib.createIcons({ icons: container.querySelectorAll("[data-lucide]") });
 }
 
+function toggleInsightCard(card, shouldOpen) {
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  card.getAnimations().forEach(animation => animation.cancel());
+
+  if (shouldOpen) {
+    card.hidden = false;
+    const targetHeight = card.scrollHeight;
+    if (prefersReducedMotion) {
+      card.style.removeProperty("height");
+      card.style.removeProperty("overflow");
+      card.style.removeProperty("opacity");
+      card.style.removeProperty("transform");
+      card.style.removeProperty("filter");
+      return;
+    }
+    card.style.overflow = "hidden";
+    card.animate(
+      [
+        { height: "0px", opacity: 0, transform: "translateY(14px) scale(0.965)", filter: "blur(8px)" },
+        { height: `${targetHeight}px`, opacity: 1, transform: "translateY(0) scale(1)", filter: "blur(0px)" }
+      ],
+      { duration: 560, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "forwards" }
+    ).finished.finally(() => {
+      card.style.removeProperty("height");
+      card.style.removeProperty("overflow");
+      card.style.removeProperty("opacity");
+      card.style.removeProperty("transform");
+      card.style.removeProperty("filter");
+    });
+    return;
+  }
+
+  if (prefersReducedMotion) {
+    card.hidden = true;
+    card.style.removeProperty("height");
+    card.style.removeProperty("overflow");
+    card.style.removeProperty("opacity");
+    card.style.removeProperty("transform");
+    card.style.removeProperty("filter");
+    return;
+  }
+
+  const startHeight = card.offsetHeight;
+  card.style.overflow = "hidden";
+  card.animate(
+    [
+      { height: `${startHeight}px`, opacity: 1, transform: "translateY(0) scale(1)", filter: "blur(0px)" },
+      { height: "0px", opacity: 0, transform: "translateY(8px) scale(0.975)", filter: "blur(6px)" }
+    ],
+    { duration: 420, easing: "cubic-bezier(0.4, 0, 0.2, 1)", fill: "forwards" }
+  ).finished.finally(() => {
+    card.hidden = true;
+    card.style.removeProperty("height");
+    card.style.removeProperty("overflow");
+    card.style.removeProperty("opacity");
+    card.style.removeProperty("transform");
+    card.style.removeProperty("filter");
+  });
+}
+
 function syncBrewScoreRatingUi() {
   const scoreInput = document.getElementById("brew-score");
   const ratingWrap = document.getElementById("brew-score-beans");
@@ -620,25 +680,71 @@ function renderBrewDetails(container, brew) {
   scoreWrap.appendChild(badge);
   scoreWrap.appendChild(badgeLabel);
 
-  const insightCard = document.createElement("div");
-  insightCard.className = "brew-insight-card";
-  const insightTitle = document.createElement("div");
-  insightTitle.className = "brew-insight-title";
-  insightTitle.textContent = "INSIGHT";
-  const insightBody = document.createElement("div");
-  insightBody.className = "brew-insight-body";
-  applyInsightText(insightBody, brew);
-  insightCard.appendChild(insightTitle);
-  insightCard.appendChild(insightBody);
-  if (scoreValue !== null && scoreValue > 0) {
-    insightCard.classList.add("is-ready");
-    requestAnimationFrame(() => {
-      insightCard.classList.add("is-visible");
-    });
-  } else {
-    insightCard.hidden = true;
+  const notesTitle = document.createElement("h5");
+  notesTitle.className = "brew-detail-section-title";
+  notesTitle.textContent = "Notes";
+  const notesBox = document.createElement("div");
+  notesBox.className = "brew-notes-box";
+  notesBox.textContent = brew.notes && brew.notes.trim() ? brew.notes.trim() : "No tasting notes.";
+  const notesWrap = document.createElement("div");
+  notesWrap.className = "brew-detail-notes-wrap";
+  notesWrap.appendChild(notesTitle);
+  const acidityLegacy = toNumber(brew.acidityRating);
+  const bitternessLegacy = toNumber(brew.bitternessRating);
+  if (acidityLegacy !== null || bitternessLegacy !== null) {
+    const legacy = document.createElement("div");
+    legacy.className = "brew-legacy-profile";
+    const parts = [];
+    if (acidityLegacy !== null) parts.push(`Acidity ${acidityLegacy}`);
+    if (bitternessLegacy !== null) parts.push(`Bitterness ${bitternessLegacy}`);
+    legacy.textContent = `Legacy Profile: ${parts.join(", ")}.`;
+    notesWrap.appendChild(legacy);
   }
-  scoreWrap.appendChild(insightCard);
+  notesWrap.appendChild(notesBox);
+
+  const insightSection = document.createElement("div");
+  insightSection.className = "brew-insight-section";
+  if (scoreValue !== null && scoreValue > 0) {
+    const insightToggle = document.createElement("button");
+    insightToggle.type = "button";
+    insightToggle.className = "secondary-button brew-insight-toggle";
+    insightToggle.innerHTML = '<span>AI suggestion</span><span class="brew-insight-toggle-icon" aria-hidden="true">+</span>';
+
+    const insightCard = document.createElement("div");
+    insightCard.className = "brew-insight-card";
+    insightCard.hidden = true;
+    const insightTitle = document.createElement("div");
+    insightTitle.className = "brew-insight-title";
+    insightTitle.textContent = "AI SUGGESTION";
+    const insightBody = document.createElement("div");
+    insightBody.className = "brew-insight-body";
+    insightBody.textContent = "Brewing coach is preparing a focused note for this cup...";
+    insightCard.appendChild(insightTitle);
+    insightCard.appendChild(insightBody);
+
+    let insightLoaded = false;
+    let insightOpen = false;
+    insightToggle.addEventListener("click", () => {
+      insightOpen = !insightOpen;
+      insightToggle.classList.toggle("is-open", insightOpen);
+      const icon = insightToggle.querySelector(".brew-insight-toggle-icon");
+      if (icon) {
+        icon.textContent = insightOpen ? "−" : "+";
+      }
+      if (insightOpen && !insightLoaded) {
+        insightLoaded = true;
+        applyInsightText(insightBody, brew);
+      }
+      toggleInsightCard(insightCard, insightOpen);
+    });
+    insightSection.appendChild(insightToggle);
+    insightSection.appendChild(insightCard);
+  } else {
+    const insightDisabled = document.createElement("div");
+    insightDisabled.className = "brew-insight-disabled";
+    insightDisabled.textContent = "Add a score to unlock AI suggestion.";
+    insightSection.appendChild(insightDisabled);
+  }
 
   head.appendChild(titleWrap);
   head.appendChild(scoreWrap);
@@ -712,31 +818,10 @@ function renderBrewDetails(container, brew) {
   metricsGrid.appendChild(doseYieldCard);
   metricsGrid.appendChild(timerCard);
 
-  const notesTitle = document.createElement("h5");
-  notesTitle.className = "brew-detail-section-title";
-  notesTitle.textContent = "Notes";
-  const notesBox = document.createElement("div");
-  notesBox.className = "brew-notes-box";
-  notesBox.textContent = brew.notes && brew.notes.trim() ? brew.notes.trim() : "No tasting notes.";
-  const notesWrap = document.createElement("div");
-  notesWrap.className = "brew-detail-notes-wrap";
-  notesWrap.appendChild(notesTitle);
-  const acidityLegacy = toNumber(brew.acidityRating);
-  const bitternessLegacy = toNumber(brew.bitternessRating);
-  if (acidityLegacy !== null || bitternessLegacy !== null) {
-    const legacy = document.createElement("div");
-    legacy.className = "brew-legacy-profile";
-    const parts = [];
-    if (acidityLegacy !== null) parts.push(`Acidity ${acidityLegacy}`);
-    if (bitternessLegacy !== null) parts.push(`Bitterness ${bitternessLegacy}`);
-    legacy.textContent = `Legacy Profile: ${parts.join(", ")}.`;
-    notesWrap.appendChild(legacy);
-  }
-  notesWrap.appendChild(notesBox);
-
   card.appendChild(head);
-  card.appendChild(metricsGrid);
   card.appendChild(notesWrap);
+  card.appendChild(insightSection);
+  card.appendChild(metricsGrid);
   shell.appendChild(card);
   container.appendChild(shell);
   refreshLucideIcons(container);

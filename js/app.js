@@ -19,6 +19,7 @@ import {
 } from "./storage.js";
 
 const PANEL_IDS = ["home", "tab-brew", "tab-mybrews", "tab-calendar", "tab-beans", "tab-grinders", "tab-machines", "tab-rules", "tab-settings"];
+const SWIPE_PANEL_IDS = PANEL_IDS.filter(id => id !== "tab-settings");
 let currentPanelId = "home";
 let isPanelAnimating = false;
 
@@ -261,7 +262,11 @@ function setHeaderFor(targetId) {
 }
 
 function getPanelIndex(panelId) {
-  return PANEL_IDS.indexOf(panelId);
+  return SWIPE_PANEL_IDS.indexOf(panelId);
+}
+
+function isSwipePanel(panelId) {
+  return SWIPE_PANEL_IDS.includes(panelId);
 }
 
 function setPanelVisibility(targetId) {
@@ -310,7 +315,8 @@ function animatePanelChange(fromEl, toEl, direction) {
   toEl.style.display = "block";
   const toHeight = toEl.offsetHeight;
   const sign = direction === "backward" ? 1 : -1;
-  const distance = Math.min(92, Math.max(44, Math.round(main.clientWidth * 0.12)));
+  const incomingOffset = Math.min(Math.round(main.clientWidth * 0.56), 280);
+  const outgoingOffset = Math.min(Math.round(main.clientWidth * 0.24), 120);
   main.classList.add("is-panel-transitioning");
   main.style.minHeight = `${Math.max(fromHeight, toHeight)}px`;
 
@@ -325,18 +331,18 @@ function animatePanelChange(fromEl, toEl, direction) {
 
   const outgoing = fromEl.animate(
     [
-      { transform: "translateX(0)", opacity: 1 },
-      { transform: `translateX(${sign * -distance}px)`, opacity: 0 }
+      { transform: "translateX(0) scale(1)", opacity: 1 },
+      { transform: `translateX(${sign * -outgoingOffset}px) scale(0.985)`, opacity: 0.52 }
     ],
-    { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }
+    { duration: 420, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "forwards" }
   );
 
   const incoming = toEl.animate(
     [
-      { transform: `translateX(${sign * distance}px)`, opacity: 0 },
-      { transform: "translateX(0)", opacity: 1 }
+      { transform: `translateX(${sign * incomingOffset}px) scale(0.982)`, opacity: 0.72 },
+      { transform: "translateX(0) scale(1)", opacity: 1 }
     ],
-    { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }
+    { duration: 460, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "forwards" }
   );
 
   return Promise.allSettled([outgoing.finished, incoming.finished]).then(() => {
@@ -356,7 +362,8 @@ function showPanel(targetId, options = {}) {
   const currentEl = document.getElementById(currentPanelId);
   const targetIndex = getPanelIndex(targetId);
   const currentIndex = getPanelIndex(currentPanelId);
-  const inferredDirection = targetIndex > currentIndex ? "forward" : "backward";
+  const inferredDirection =
+    targetIndex !== -1 && currentIndex !== -1 && targetIndex > currentIndex ? "forward" : "backward";
   const direction = options.direction || inferredDirection;
   const shouldAnimate = options.animate !== false;
 
@@ -393,7 +400,7 @@ function initSwipeNavigation() {
   };
 
   main.addEventListener("touchstart", event => {
-    if (event.touches.length !== 1 || isPanelAnimating) {
+    if (event.touches.length !== 1 || isPanelAnimating || !isSwipePanel(currentPanelId)) {
       swipeState.active = false;
       return;
     }
@@ -413,7 +420,7 @@ function initSwipeNavigation() {
     if (!isHorizontal) return;
     const currentIndex = getPanelIndex(currentPanelId);
     const nextIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
-    const nextPanelId = PANEL_IDS[nextIndex];
+    const nextPanelId = SWIPE_PANEL_IDS[nextIndex];
     if (!nextPanelId) return;
     showPanel(nextPanelId, {
       animate: true,
