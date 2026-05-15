@@ -23,8 +23,16 @@
 </div>
 <div class="app-shell">
 <header class="app-header">
+<div class="app-header-top">
+<div>
 <h1 id="app-title">My Brew</h1>
-<p class="app-subtitle">Coffee log for brews, cafes, and beans</p>
+<p class="app-subtitle">Coffee log for brews, calendar, and beans</p>
+</div>
+<div class="sync-status-pill" data-sync-status data-state="idle" aria-label="Saved only in this browser. Add Supabase settings to enable backup." title="Saved only in this browser. Add Supabase settings to enable backup.">
+<span class="sync-status-dot" aria-hidden="true"></span>
+<span data-sync-label>Local only</span>
+</div>
+</div>
 </header>
 <main class="app-main">
 <section id="home" class="tab-panel active">
@@ -71,7 +79,7 @@
 <span class="home-card-subtitle">Pantry, stock, and freshness</span>
 </div>
 </button>
-<button class="home-card" data-target="tab-explore">
+<button class="home-card" data-target="tab-calendar">
 <div class="home-icon-wrap">
 <svg class="home-icon" viewBox="0 0 40 40" aria-hidden="true">
 <rect x="8" y="15" width="24" height="14" rx="2" ry="2"></rect>
@@ -81,8 +89,8 @@
 </svg>
 </div>
 <div class="home-card-text">
-<span class="home-card-title">Cafes</span>
-<span class="home-card-subtitle">Visited and wish-list coffee shops</span>
+<span class="home-card-title">Coffee Calendar</span>
+<span class="home-card-subtitle">Monthly brew stickers and charted habits</span>
 </div>
  </button>
 <button class="home-card" data-target="tab-machines">
@@ -318,85 +326,48 @@
 </div>
 </section>
 </section>
-<section id="tab-explore" class="tab-panel">
-<h2>Explore Cafes</h2>
-<section class="card">
-<div class="field-group full-width">
-<label for="cafe-search">Search cafes</label>
-<input type="search" id="cafe-search" placeholder="Search by name, origin, or city">
+<section id="tab-calendar" class="tab-panel">
+<h2>Coffee Calendar</h2>
+<section class="card calendar-shell">
+<div class="calendar-header">
+<div>
+<h3 id="calendar-month-label">This Month</h3>
+<p class="settings-hint">Every brew day gets a sticker in the calendar.</p>
 </div>
+<div class="calendar-nav">
+<div class="sync-status-pill calendar-sync-pill" data-sync-status data-state="idle" aria-label="Saved only in this browser. Add Supabase settings to enable backup." title="Saved only in this browser. Add Supabase settings to enable backup.">
+<span class="sync-status-dot" aria-hidden="true"></span>
+<span data-sync-label>Local only</span>
+</div>
+<button type="button" id="calendar-prev" class="ghost-button small-button" aria-label="Previous month">Prev</button>
+<button type="button" id="calendar-today" class="secondary-button small-button">Today</button>
+<button type="button" id="calendar-next" class="ghost-button small-button" aria-label="Next month">Next</button>
+</div>
+</div>
+<div class="calendar-weekdays" aria-hidden="true">
+<span>Mon</span>
+<span>Tue</span>
+<span>Wed</span>
+<span>Thu</span>
+<span>Fri</span>
+<span>Sat</span>
+<span>Sun</span>
+</div>
+<div id="coffee-calendar-grid" class="coffee-calendar-grid"></div>
 </section>
-<form id="cafe-form" class="card form-grid">
-<div class="field-group">
-<label for="cafe-name">Cafe name</label>
-<input type="text" id="cafe-name" required>
-</div>
-<div class="field-group">
-<label for="cafe-status">List</label>
-<select id="cafe-status">
-<option value="visited">Visited</option>
-<option value="wishlist">Want to visit</option>
-</select>
-</div>
-<div class="field-group">
-<label for="cafe-location">Location</label>
-<input type="text" id="cafe-location" placeholder="City, country, or address">
-</div>
-<div class="field-group">
-<label for="cafe-equipment">Equipment</label>
-<input type="text" id="cafe-equipment" placeholder="Machine and grinder">
-</div>
-<div class="field-group">
-<label for="cafe-origin">Bean origin</label>
-<input type="text" id="cafe-origin" placeholder="e.g. Ethiopia, Colombia">
-</div>
-<div class="field-group">
-<label for="cafe-roast-style">Roasting style</label>
-<input type="text" id="cafe-roast-style" placeholder="Light, medium, dark">
-</div>
-<fieldset class="field-group full-width">
-<legend>Visit details</legend>
-<div class="inline-fields">
-<div class="inline-field">
-<span>Drink</span>
-<input type="text" id="visit-drink" placeholder="e.g. Oat flat white">
-</div>
-<div class="inline-field">
-<span>Rating (1–5)</span>
-<select id="visit-rating">
-<option value="">Not rated</option>
-<option value="1">1</option>
-<option value="2">2</option>
-<option value="3">3</option>
-<option value="4">4</option>
-<option value="5">5</option>
-</select>
-</div>
-<div class="inline-field">
-<span>Date</span>
-<input type="date" id="visit-date">
-</div>
-</div>
-<div class="field-group">
-<label for="visit-notes">Notes</label>
-<textarea id="visit-notes" rows="2" placeholder="Vibes, service, signature drinks"></textarea>
-</div>
-</fieldset>
-<div class="field-group full-width">
-<label for="cafe-photo">Cafe or cup photo</label>
-<input type="file" id="cafe-photo" accept="image/*">
-<small class="field-help">Photos are stored locally in your browser.</small>
-</div>
-<div class="form-actions full-width">
-<button type="submit" class="primary-button">Save cafe</button>
-</div>
-</form>
-<section class="card list-card">
+<section class="calendar-stats-grid">
+<article class="card chart-card">
 <div class="card-header">
-<h3>Cafes</h3>
-<button type="button" id="clear-cafes" class="ghost-button">Clear cafes</button>
+<h3>Brew Rhythm</h3>
+<div class="calendar-range-toggle" id="calendar-range-toggle">
+<button type="button" class="secondary-button small-button chip-active" data-range="week">Week</button>
+<button type="button" class="secondary-button small-button" data-range="month">Month</button>
+<button type="button" class="secondary-button small-button" data-range="year">Year</button>
 </div>
-<ul id="cafe-list" class="item-list"></ul>
+</div>
+<div id="calendar-heatmap" class="calendar-heatmap"></div>
+<p id="calendar-heatmap-caption" class="settings-hint">Your brew rhythm is shown as movement and intensity instead of raw counts.</p>
+</article>
 </section>
 </section>
 <section id="tab-beans" class="tab-panel">
@@ -438,6 +409,15 @@
 Altitude
 Variety
 Aroma"></textarea>
+</div>
+<div class="field-group full-width bean-ocr-group">
+<label for="bean-package-ocr">Photo info</label>
+<div class="bean-ocr-actions">
+<input type="file" id="bean-package-ocr" accept="image/*" capture="environment">
+<button type="button" id="bean-ocr-run" class="secondary-button">Read photo</button>
+</div>
+<small class="field-help">Scan the bean bag details to auto-fill the form. This does not replace the bean photo below.</small>
+<div id="bean-ocr-status" class="bean-ocr-status" aria-live="polite"></div>
 </div>
 <div class="field-group full-width">
 <label for="bean-photo">Bean photo</label>
@@ -521,6 +501,37 @@ Aroma"></textarea>
 <p class="settings-hint">All data is stored locally in this browser.</p>
 </section>
 <section class="card">
+<h3>Cloud backup</h3>
+<div class="field-group full-width">
+<label for="sync-supabase-url">Supabase URL</label>
+<input type="url" id="sync-supabase-url" placeholder="https://your-project.supabase.co">
+</div>
+<div class="field-group full-width">
+<label for="sync-supabase-key">Supabase anon key</label>
+<input type="password" id="sync-supabase-key" placeholder="eyJ...">
+</div>
+<div class="settings-actions">
+<button type="button" id="sync-save-settings" class="secondary-button">Save sync settings</button>
+<button type="button" id="sync-now-button" class="ghost-button">Sync brews now</button>
+</div>
+<p id="sync-settings-hint" class="settings-hint">Use your project URL like <code>https://your-project.supabase.co</code>, not the dashboard URL. When enabled, every saved brew is upserted to table <code>brew_logs</code>.</p>
+<details class="danger-zone">
+<summary>Supabase table setup</summary>
+<pre class="setup-code">create table if not exists public.brew_logs (
+  id text primary key,
+  brew_date date,
+  method text,
+  dose_grams numeric,
+  yield_grams numeric,
+  extraction_time numeric,
+  notes text,
+  score numeric,
+  payload jsonb not null,
+  updated_at timestamptz default now()
+);</pre>
+</details>
+</section>
+<section class="card">
 <h3>Knowledge scope</h3>
 <div class="knowledge-upload-grid">
 <div class="field-group full-width">
@@ -560,6 +571,7 @@ Aroma"></textarea>
 <button id="data-button" class="data-bar" aria-label="Open Data">Data</button>
 </div>
 <script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
 <script type="module" src="./js/app.js"></script>
 </body>
 </html>

@@ -1,8 +1,9 @@
 import { bindBrewsUi, refillLastBrewIfConfirmed, bindHomeBrewsPreview } from "./brews.js";
-import { bindCafesUi } from "./cafes.js";
 import { bindBeansUi } from "./beans.js";
 import { bindGrindersUi } from "./grinders.js";
 import { bindMachinesUi } from "./machines.js";
+import { bindCoffeeCalendarUi } from "./calendar.js";
+import { bindSyncStatusUi, initSyncStatus, saveCloudSyncSettings, syncAllBrewsToCloud } from "./sync.js";
 import {
   exportAll,
   importAll,
@@ -13,7 +14,8 @@ import {
   loadSelectedKnowledgeScopes,
   saveSelectedKnowledgeScopes,
   loadAiSettings,
-  saveAiSettings
+  saveAiSettings,
+  loadSyncSettings
 } from "./storage.js";
 
 function normalizeScopeId(value) {
@@ -210,7 +212,7 @@ function setHeaderFor(targetId) {
   if (!title || !subtitle) return;
   if (targetId === "home") {
     title.textContent = "My Brew";
-    subtitle.textContent = "Coffee log for brews, cafes, and beans";
+    subtitle.textContent = "Coffee log for brews, calendar, and beans";
     return;
   }
   if (targetId === "tab-brew") {
@@ -223,9 +225,9 @@ function setHeaderFor(targetId) {
     subtitle.textContent = "Saved brew data and sorting";
     return;
   }
-  if (targetId === "tab-explore") {
-    title.textContent = "Cafes";
-    subtitle.textContent = "Visited and wish-list coffee shops";
+  if (targetId === "tab-calendar") {
+    title.textContent = "Coffee Calendar";
+    subtitle.textContent = "Monthly brew stickers and charted coffee habits";
     return;
   }
   if (targetId === "tab-beans") {
@@ -255,7 +257,7 @@ function setHeaderFor(targetId) {
 }
 
 function showPanel(targetId) {
-  const ids = ["home", "tab-brew", "tab-mybrews", "tab-explore", "tab-beans", "tab-grinders", "tab-machines", "tab-rules", "tab-settings"];
+  const ids = ["home", "tab-brew", "tab-mybrews", "tab-calendar", "tab-beans", "tab-grinders", "tab-machines", "tab-rules", "tab-settings"];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -390,7 +392,7 @@ function initSettings() {
 
   if (resetBtn) {
     resetBtn.addEventListener("click", () => {
-      const confirmed = window.confirm("Reset all brews, cafes, and beans?");
+      const confirmed = window.confirm("Reset all brews, calendar data, and beans?");
       if (!confirmed) return;
       resetAll();
       window.location.reload();
@@ -408,6 +410,11 @@ function initSettings() {
   const apiKeyInput = document.getElementById("insight-api-key");
   const saveModelBtn = document.getElementById("insight-save-settings");
   const modelHint = document.getElementById("insight-model-hint");
+  const syncUrlInput = document.getElementById("sync-supabase-url");
+  const syncKeyInput = document.getElementById("sync-supabase-key");
+  const syncSaveBtn = document.getElementById("sync-save-settings");
+  const syncNowBtn = document.getElementById("sync-now-button");
+  const syncHint = document.getElementById("sync-settings-hint");
 
   const renderScopeList = () => {
     if (!scopeList) return;
@@ -534,6 +541,23 @@ function initSettings() {
     }
   };
 
+  const renderSyncSettings = () => {
+    const settings = loadSyncSettings();
+    if (syncUrlInput) syncUrlInput.value = settings.supabaseUrl || "";
+    if (syncKeyInput) syncKeyInput.value = settings.anonKey || "";
+    if (syncHint) {
+      if (settings.enabled && settings.lastSyncedAt) {
+        syncHint.textContent = `Auto backup is enabled. Last sync: ${new Date(settings.lastSyncedAt).toLocaleString()}.`;
+      } else if (settings.enabled) {
+        syncHint.textContent = "Auto backup is enabled. New brews will sync to Supabase table brew_logs.";
+      } else if (settings.supabaseUrl && !settings.anonKey) {
+        syncHint.textContent = "Project URL saved. Backup is still in Local only mode until you add the Supabase anon key.";
+      } else {
+        syncHint.textContent = "When enabled, every saved brew is upserted to Supabase table brew_logs.";
+      }
+    }
+  };
+
   if (saveModelBtn) {
     saveModelBtn.addEventListener("click", () => {
       const model = modelInput ? modelInput.value.trim() : "gemini-2.0-flash";
@@ -548,7 +572,46 @@ function initSettings() {
     });
   }
 
+  if (syncSaveBtn) {
+    syncSaveBtn.addEventListener("click", async () => {
+      const supabaseUrl = syncUrlInput ? syncUrlInput.value.trim() : "";
+      const anonKey = syncKeyInput ? syncKeyInput.value.trim() : "";
+      const settings = saveCloudSyncSettings({
+        enabled: Boolean(supabaseUrl && anonKey),
+        supabaseUrl,
+        anonKey
+      });
+      renderSyncSettings();
+      if (!settings.enabled) {
+        window.alert("Cloud backup disabled. The app will continue saving locally.");
+        return;
+      }
+      try {
+        await syncAllBrewsToCloud();
+        renderSyncSettings();
+        window.alert("Supabase sync configured. Existing brews have been backed up.");
+      } catch (error) {
+        renderSyncSettings();
+        window.alert(`Sync setup saved, but backup failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    });
+  }
+
+  if (syncNowBtn) {
+    syncNowBtn.addEventListener("click", async () => {
+      try {
+        await syncAllBrewsToCloud();
+        renderSyncSettings();
+        window.alert("Brews synced to cloud.");
+      } catch (error) {
+        renderSyncSettings();
+        window.alert(`Cloud sync failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    });
+  }
+
   renderAiSettings();
+  renderSyncSettings();
 }
 
 function initApp() {
@@ -559,7 +622,9 @@ function initApp() {
   bindMachinesUi();
   bindBrewsUi();
   bindHomeBrewsPreview();
-  bindCafesUi();
+  bindCoffeeCalendarUi();
+  bindSyncStatusUi();
+  initSyncStatus();
   initSettings();
   showPanel("home");
   const splash = document.getElementById("splash");

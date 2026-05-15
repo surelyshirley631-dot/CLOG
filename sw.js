@@ -1,4 +1,4 @@
-const CACHE_NAME = "clog-cache-v3";
+const CACHE_NAME = "clog-cache-v9";
 const ASSETS = [
   "/",
   "/index.html",
@@ -6,10 +6,13 @@ const ASSETS = [
   "/js/app.js",
   "/js/brews.js",
   "/js/beans.js",
-  "/js/cafes.js",
+  "/js/calendar.js",
+  "/js/sync.js",
   "/js/grinders.js",
   "/js/machines.js",
-  "/manifest.webmanifest"
+  "/manifest.webmanifest",
+  "/sticker.png",
+  "/sticker.jpg"
 ];
 
 self.addEventListener("install", event => {

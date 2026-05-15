@@ -2,6 +2,7 @@ import { loadBrews, saveBrews, loadKnowledgeEntries, loadSelectedKnowledgeScopes
 import { getBeans, renderBeansOptions, updateBeanStock } from "./beans.js";
 import { renderGrinderOptions } from "./grinders.js";
 import { renderMachineOptions } from "./machines.js";
+import { syncBrewToCloud } from "./sync.js";
 
 function generateId() {
   return `brew_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -321,7 +322,7 @@ async function requestAiInsight(brew, fallbackText, scopedKnowledge) {
           systemInstruction: {
             parts: [
               {
-                text: "你是咖啡萃取教练。输出中文，1-2句，直接给可执行微调建议。禁止出现技术词：RAG、模型、文档源、检索。"
+                text: "You are a coffee extraction coach. Respond in English only, in 1-2 concise sentences, with directly actionable next-cup adjustments. Do not mention technical terms like RAG, model, document source, or retrieval."
               }
             ]
           },
@@ -353,7 +354,7 @@ async function requestAiInsight(brew, fallbackText, scopedKnowledge) {
             {
               role: "system",
               content:
-                "你是咖啡萃取教练。输出中文，1-2句，直接给可执行微调建议。禁止出现技术词：RAG、模型、文档源、检索。"
+                "You are a coffee extraction coach. Respond in English only, in 1-2 concise sentences, with directly actionable next-cup adjustments. Do not mention technical terms like RAG, model, document source, or retrieval."
             },
             {
               role: "user",
@@ -412,19 +413,19 @@ function buildInsightText(brew) {
   const noteRules = [
     {
       match: /(太酸|偏酸|酸尖|sour|sharp|tart)/i,
-      advice: `你写到酸感偏前段，下一杯先把研磨调细半格，水温提高到 ${temp === "Not Set" ? "93–94°C" : `${Math.min(96, (toNumber(brew.waterTemp) || 93) + 1)}°C`}，并把时间稳定在 ${time === "Not Set" ? "24–30s" : `${Math.max(22, (toNumber(brew.extractionTime) || 24) + 2)}s`}。`
+      advice: `Your notes suggest the cup leans sharp and acidic up front. For the next brew, tighten grind by half a step, raise temperature to ${temp === "Not Set" ? "93-94°C" : `${Math.min(96, (toNumber(brew.waterTemp) || 93) + 1)}°C`}, and target ${time === "Not Set" ? "24-30s" : `${Math.max(22, (toNumber(brew.extractionTime) || 24) + 2)}s`}.`
     },
     {
       match: /(苦涩|过苦|木涩|bitter|astringent|dry)/i,
-      advice: `你提到后段苦涩，建议研磨放粗半格，出杯时间缩短到 ${time === "Not Set" ? "22–26s" : `${Math.max(18, (toNumber(brew.extractionTime) || 25) - 2)}s`}，并把水温控制在 ${temp === "Not Set" ? "91–93°C" : `${Math.max(88, (toNumber(brew.waterTemp) || 92) - 1)}°C`}。`
+      advice: `Your notes point to bitterness in the finish. Go half a step coarser, shorten the shot to ${time === "Not Set" ? "22-26s" : `${Math.max(18, (toNumber(brew.extractionTime) || 25) - 2)}s`}, and keep water closer to ${temp === "Not Set" ? "91-93°C" : `${Math.max(88, (toNumber(brew.waterTemp) || 92) - 1)}°C`}.`
     },
     {
       match: /(流速快|跑得快|过快|fast flow|runs fast|gusher)/i,
-      advice: `你记录了流速偏快，可把研磨细一格并轻微增粉，让流速更稳，目标时间落在 ${time === "Not Set" ? "25–30s" : `${Math.max(24, toNumber(brew.extractionTime) || 25)}s`}。`
+      advice: `The flow seems too fast. Go one step finer and slightly increase dose so the flow settles, with a target time around ${time === "Not Set" ? "25-30s" : `${Math.max(24, toNumber(brew.extractionTime) || 25)}s`}.`
     },
     {
       match: /(流速慢|堵塞|闷住|slow flow|choke|stalled)/i,
-      advice: `你记录了流速偏慢，建议先把研磨粗半格，同时减少压粉力度，让萃取回到顺畅区间。`
+      advice: "The flow looks too slow or close to choking. Start by going half a step coarser and easing puck resistance so extraction returns to a smoother range."
     }
   ];
 
@@ -438,19 +439,19 @@ function buildInsightText(brew) {
     const tempValue = toNumber(brew.waterTemp);
     const timeValue = toNumber(brew.extractionTime);
     if (timeValue !== null && timeValue < 20) {
-      lines.push("这杯时间偏短，建议略微调细研磨并延长接触时间，让甜感与厚度更完整。");
+      lines.push("This brew ran short. Try a slightly finer grind and a bit more contact time to build sweetness and body.");
     } else if (timeValue !== null && timeValue > 35) {
-      lines.push("这杯时间偏长，建议略微调粗研磨或减小粉量，降低后段堆积苦感。");
+      lines.push("This brew ran long. Go slightly coarser or reduce dose a touch to avoid bitterness building in the finish.");
     }
     if (tempValue !== null && tempValue > 96) {
-      lines.push("当前水温偏高，下一杯可降到 92–94°C，风味会更干净。");
+      lines.push("The water temperature is on the high side. Bring it down to about 92-94°C for a cleaner cup.");
     } else if (tempValue !== null && tempValue < 88) {
-      lines.push("当前水温偏低，建议提高到 90–93°C，帮助提升萃取完整度。");
+      lines.push("The water temperature is low. Raise it to around 90-93°C to improve extraction completeness.");
     }
   }
 
   if (!lines.length) {
-    lines.push(`以当前参数为基线（Grind ${grind} / Temp ${temp} / Time ${time}），下一杯先做单变量微调：研磨或时间只改一个档位，更容易锁定甜感平衡点。`);
+    lines.push(`Use the current settings as your baseline (Grind ${grind} / Temp ${temp} / Time ${time}). On the next cup, change only one variable, such as grind or time, to find the sweetness balance point more reliably.`);
   }
 
   const scopedKnowledge = pickScopedKnowledge(brew, 2);
@@ -459,14 +460,14 @@ function buildInsightText(brew) {
       .map(entry => String(entry.content || "").replace(/\s+/g, " ").trim())
       .filter(Boolean)
       .map(text => text.slice(0, 72))
-      .join("；");
+      .join("; ");
     if (knowledgeText) {
-      lines[0] = `${lines[0]} 结合你勾选的手记要点：${knowledgeText}。`;
+      lines[0] = `${lines[0]} Selected note highlights: ${knowledgeText}.`;
     }
   }
 
   if (notesText) {
-    return `根据你的笔记“${notesText}”，${lines[0]}`;
+    return `Based on your note "${notesText}", ${lines[0]}`;
   }
   return lines[0];
 }
@@ -786,7 +787,7 @@ export function bindBrewsUi() {
     renderMachineOptions(machineSelect);
   });
 
-  form.addEventListener("submit", event => {
+  form.addEventListener("submit", async event => {
     event.preventDefault();
     const dateInput = document.getElementById("brew-date");
     const methodInput = document.getElementById("brew-method");
@@ -868,6 +869,9 @@ export function bindBrewsUi() {
     renderGrinderOptions(grinderSelect);
     renderBrews(list, brews);
     document.dispatchEvent(new CustomEvent("brews-updated", { detail: { brews } }));
+    syncBrewToCloud(brew).catch(error => {
+      console.error("Cloud backup failed", error);
+    });
 
     const tips = buildOptimizationTips(brew);
     tipsList.innerHTML = "";

@@ -84,6 +84,124 @@ async function toOptimizedPhotoDataUrl(file) {
   return canvas.toDataURL("image/jpeg", 0.82);
 }
 
+function normalizeOcrLine(line) {
+  return String(line || "")
+    .replace(/[|]/g, "I")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeDateForInput(value) {
+  if (!value) return "";
+  const cleaned = String(value).trim().replace(/[.]/g, "-").replace(/\//g, "-");
+  const yyyyMmDd = cleaned.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+  if (yyyyMmDd) {
+    const [, year, month, day] = yyyyMmDd;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+  const ddMmYyyy = cleaned.match(/\b(\d{1,2})-(\d{1,2})-(\d{4})\b/);
+  if (ddMmYyyy) {
+    const [, day, month, year] = ddMmYyyy;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+  const parsed = new Date(cleaned);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${parsed.getFullYear()}-${month}-${day}`;
+}
+
+function extractOpenDate(text) {
+  const patterns = [
+    /(?:open(?:ed)?|opened on|date opened|open date)\s*[:\-]?\s*([0-9./-]{6,10})/i,
+    /(?:roast(?:ed)?|roast date|packed on|bagged on)\s*[:\-]?\s*([0-9./-]{6,10})/i,
+    /\b(\d{4}[./-]\d{1,2}[./-]\d{1,2})\b/,
+    /\b(\d{1,2}[./-]\d{1,2}[./-]\d{4})\b/
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const normalized = normalizeDateForInput(match[1]);
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function detectBeanType(text) {
+  if (/\bblend\b/i.test(text)) return "blend";
+  if (/\barabica\b/i.test(text)) return "arabica";
+  if (/\brobusta\b/i.test(text)) return "robusta";
+  if (/\bliberica\b/i.test(text)) return "liberica";
+  if (/\bexcelsa\b/i.test(text)) return "excelsa";
+  return "";
+}
+
+function detectRoastType(text) {
+  if (/\bmedium[\s-]?dark\b/i.test(text)) return "medium-dark";
+  if (/\bmedium[\s-]?light\b/i.test(text)) return "medium-light";
+  if (/\bdark roast\b|\bdark\b/i.test(text)) return "dark";
+  if (/\blight roast\b|\blight\b/i.test(text)) return "light";
+  if (/\bmedium roast\b|\bmedium\b/i.test(text)) return "medium";
+  return "";
+}
+
+function extractBeanName(lines) {
+  const blocked = /(farm|altitude|variety|aroma|origin|process|washed|natural|roast|date|grams|weight|notes|producer|region|coffee|beans|espresso|filter|blend|anaerobic|geisha|gesha)/i;
+  const candidates = lines
+    .map(normalizeOcrLine)
+    .filter(line => line && line.length >= 3 && line.length <= 48)
+    .filter(line => !/\d{2,}/.test(line))
+    .filter(line => !blocked.test(line));
+  if (!candidates.length) return "";
+  const best = candidates[0].replace(/^[^A-Za-z]+/, "").trim();
+  return best;
+}
+
+function extractStructuredNotes(lines) {
+  const noteLabels = /(farm|altitude|variety|aroma|flavor|flavour|origin|region|producer|process|washed|natural|honey|anaerobic|roaster|lot|elevation)/i;
+  const seen = new Set();
+  const selected = [];
+  lines.forEach(line => {
+    const cleaned = normalizeOcrLine(line);
+    if (!cleaned || cleaned.length < 3) return;
+    if (!noteLabels.test(cleaned)) return;
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    selected.push(cleaned);
+  });
+  return selected.slice(0, 8).join("\n");
+}
+
+function parsePackageOcrText(rawText) {
+  const text = String(rawText || "").replace(/\r/g, "\n");
+  const lines = text
+    .split("\n")
+    .map(normalizeOcrLine)
+    .filter(Boolean);
+  return {
+    name: extractBeanName(lines),
+    beanType: detectBeanType(text),
+    roastType: detectRoastType(text),
+    openDate: extractOpenDate(text),
+    notes: extractStructuredNotes(lines),
+    rawText: lines.join("\n")
+  };
+}
+
+async function recognizePackageText(file) {
+  if (!window.Tesseract || typeof window.Tesseract.recognize !== "function") {
+    throw new Error("OCR engine is not loaded yet. Please check your connection and try again.");
+  }
+  const source = await readFileAsDataUrl(file);
+  const result = await window.Tesseract.recognize(source, "eng", {
+    logger: () => {}
+  });
+  return result && result.data && typeof result.data.text === "string" ? result.data.text : "";
+}
+
 function trySaveBeans(beans) {
   try {
     saveBeans(beans);
@@ -106,9 +224,69 @@ export function bindBeansUi() {
   const openDateInput = document.getElementById("bean-open-date");
   const notesInput = document.getElementById("bean-notes");
   const photoInput = document.getElementById("bean-photo");
+  const ocrInput = document.getElementById("bean-package-ocr");
+  const ocrRunBtn = document.getElementById("bean-ocr-run");
+  const ocrStatus = document.getElementById("bean-ocr-status");
   if (!nameInput) return;
 
   let editingId = null;
+
+  const setOcrStatus = (message, tone = "") => {
+    if (!ocrStatus) return;
+    ocrStatus.textContent = message;
+    ocrStatus.className = tone ? `bean-ocr-status ${tone}` : "bean-ocr-status";
+  };
+
+  const applyOcrResult = parsed => {
+    if (parsed.name && !nameInput.value.trim()) {
+      nameInput.value = parsed.name;
+    }
+    if (typeSelect && parsed.beanType && !typeSelect.value) {
+      typeSelect.value = parsed.beanType;
+    }
+    if (roastTypeSelect && parsed.roastType && !roastTypeSelect.value) {
+      roastTypeSelect.value = parsed.roastType;
+    }
+    if (openDateInput && parsed.openDate && !openDateInput.value) {
+      openDateInput.value = parsed.openDate;
+    }
+    if (notesInput) {
+      const current = notesInput.value.trim();
+      const next = parsed.notes || "";
+      if (next && !current) {
+        notesInput.value = next;
+      } else if (next && current && !current.includes(next)) {
+        notesInput.value = `${current}\n${next}`.trim();
+      }
+    }
+  };
+
+  if (ocrRunBtn && ocrInput) {
+    ocrRunBtn.addEventListener("click", async () => {
+      const file = ocrInput.files && ocrInput.files[0];
+      if (!file) {
+        setOcrStatus("Choose or capture a package photo first.", "is-error");
+        return;
+      }
+      ocrRunBtn.disabled = true;
+      setOcrStatus("Reading photo details...", "is-working");
+      try {
+        const text = await recognizePackageText(file);
+        const parsed = parsePackageOcrText(text);
+        applyOcrResult(parsed);
+        const filledCount = [parsed.name, parsed.beanType, parsed.roastType, parsed.openDate, parsed.notes].filter(Boolean).length;
+        if (!filledCount) {
+          setOcrStatus("Photo info finished, but no clear bean fields were detected. You can still use the photo upload below.", "is-warning");
+        } else {
+          setOcrStatus(`Photo info filled ${filledCount} field${filledCount === 1 ? "" : "s"}. Bean photo upload stays separate.`, "is-success");
+        }
+      } catch (error) {
+        setOcrStatus(error instanceof Error ? error.message : "Photo info failed. Please try a clearer package photo.", "is-error");
+      } finally {
+        ocrRunBtn.disabled = false;
+      }
+    });
+  }
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
@@ -166,6 +344,10 @@ export function bindBeansUi() {
     if (photoInput) {
       photoInput.value = "";
     }
+    if (ocrInput) {
+      ocrInput.value = "";
+    }
+    setOcrStatus("");
     renderBeans(list, beans);
     document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans } }));
   });
@@ -194,6 +376,8 @@ export function bindBeansUi() {
     if (openDateInput) openDateInput.value = bean.openDate || "";
     if (notesInput) notesInput.value = bean.notes || "";
     if (photoInput) photoInput.value = "";
+    if (ocrInput) ocrInput.value = "";
+    setOcrStatus("Editing bean entry. You can run Photo info again to append package details.", "is-working");
   });
 
   renderBeans(list, loadBeans());

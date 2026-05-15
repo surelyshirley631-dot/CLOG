@@ -6,7 +6,8 @@ const STORAGE_KEYS = {
   machines: "clog_machines",
   knowledgeEntries: "clog_knowledge_entries",
   selectedKnowledgeScopes: "clog_selected_knowledge_scopes",
-  aiSettings: "clog_ai_settings"
+  aiSettings: "clog_ai_settings",
+  syncSettings: "clog_sync_settings"
 };
 
 const META_KEY = "clog_meta";
@@ -82,6 +83,21 @@ function normalizeAiSettings(value) {
     enabled,
     model: model || "gemini-2.0-flash",
     apiKey
+  };
+}
+
+function normalizeSyncSettings(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const rawUrl = source.supabaseUrl ? String(source.supabaseUrl).trim().replace(/\/+$/, "") : "";
+  const dashboardMatch = rawUrl.match(/^https?:\/\/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i);
+  const supabaseUrl = dashboardMatch ? `https://${dashboardMatch[1]}.supabase.co` : rawUrl;
+  const anonKey = source.anonKey ? String(source.anonKey).trim() : "";
+  return {
+    enabled: Boolean(source.enabled && supabaseUrl && anonKey),
+    supabaseUrl,
+    anonKey,
+    lastSyncedAt: source.lastSyncedAt ? String(source.lastSyncedAt) : "",
+    lastError: source.lastError ? String(source.lastError) : ""
   };
 }
 
@@ -217,6 +233,13 @@ function mergeImportPayload(payload) {
     model: (payload.aiSettings && payload.aiSettings.model) || (current.aiSettings && current.aiSettings.model) || "gemini-2.0-flash",
     apiKey: (payload.aiSettings && payload.aiSettings.apiKey) || (current.aiSettings && current.aiSettings.apiKey) || ""
   });
+  const syncSettings = normalizeSyncSettings({
+    enabled: payload.syncSettings && payload.syncSettings.supabaseUrl && payload.syncSettings.anonKey ? payload.syncSettings.enabled : current.syncSettings && current.syncSettings.enabled,
+    supabaseUrl: (payload.syncSettings && payload.syncSettings.supabaseUrl) || (current.syncSettings && current.syncSettings.supabaseUrl) || "",
+    anonKey: (payload.syncSettings && payload.syncSettings.anonKey) || (current.syncSettings && current.syncSettings.anonKey) || "",
+    lastSyncedAt: (payload.syncSettings && payload.syncSettings.lastSyncedAt) || (current.syncSettings && current.syncSettings.lastSyncedAt) || "",
+    lastError: (payload.syncSettings && payload.syncSettings.lastError) || (current.syncSettings && current.syncSettings.lastError) || ""
+  });
   return {
     brews,
     cafes,
@@ -226,6 +249,7 @@ function mergeImportPayload(payload) {
     knowledgeEntries,
     selectedKnowledgeScopes,
     aiSettings,
+    syncSettings,
     importedAny: brews.length > 0 || cafes.length > 0 || beans.length > 0 || grinders.length > 0 || machines.length > 0 || knowledgeEntries.length > 0
   };
 }
@@ -252,8 +276,9 @@ function buildImportPayload(raw) {
   const knowledgeEntries = normalizeKnowledgeEntries(resolveImportArray(source, "knowledgeEntries"));
   const selectedKnowledgeScopes = normalizeSelectedKnowledgeScopes(resolveImportArray(source, "selectedKnowledgeScopes"));
   const aiSettings = normalizeAiSettings(source && typeof source === "object" ? source.aiSettings : {});
+  const syncSettings = normalizeSyncSettings(source && typeof source === "object" ? source.syncSettings : {});
   const importedAny = brews.length > 0 || cafes.length > 0 || beans.length > 0 || grinders.length > 0 || machines.length > 0 || knowledgeEntries.length > 0;
-  return { brews, cafes, beans, grinders, machines, knowledgeEntries, selectedKnowledgeScopes, aiSettings, importedAny };
+  return { brews, cafes, beans, grinders, machines, knowledgeEntries, selectedKnowledgeScopes, aiSettings, syncSettings, importedAny };
 }
 
 function readStorageSnapshot() {
@@ -266,6 +291,7 @@ function readStorageSnapshot() {
     [STORAGE_KEYS.knowledgeEntries]: localStorage.getItem(STORAGE_KEYS.knowledgeEntries),
     [STORAGE_KEYS.selectedKnowledgeScopes]: localStorage.getItem(STORAGE_KEYS.selectedKnowledgeScopes),
     [STORAGE_KEYS.aiSettings]: localStorage.getItem(STORAGE_KEYS.aiSettings),
+    [STORAGE_KEYS.syncSettings]: localStorage.getItem(STORAGE_KEYS.syncSettings),
     [META_KEY]: localStorage.getItem(META_KEY)
   };
 }
@@ -300,6 +326,7 @@ function persistPayload(payload) {
   localStorage.setItem(STORAGE_KEYS.knowledgeEntries, JSON.stringify(normalizeKnowledgeEntries(payload.knowledgeEntries)));
   localStorage.setItem(STORAGE_KEYS.selectedKnowledgeScopes, JSON.stringify(normalizeSelectedKnowledgeScopes(payload.selectedKnowledgeScopes)));
   localStorage.setItem(STORAGE_KEYS.aiSettings, JSON.stringify(normalizeAiSettings(payload.aiSettings)));
+  localStorage.setItem(STORAGE_KEYS.syncSettings, JSON.stringify(normalizeSyncSettings(payload.syncSettings)));
   saveMeta({ schemaVersion: CURRENT_SCHEMA_VERSION });
 }
 
@@ -377,7 +404,8 @@ export function exportAll() {
     machines: loadMachines(),
     knowledgeEntries: loadKnowledgeEntries(),
     selectedKnowledgeScopes: loadSelectedKnowledgeScopes(),
-    aiSettings: loadAiSettings()
+    aiSettings: loadAiSettings(),
+    syncSettings: loadSyncSettings()
   };
 }
 
@@ -407,6 +435,7 @@ export function resetAll() {
   localStorage.removeItem(STORAGE_KEYS.knowledgeEntries);
   localStorage.removeItem(STORAGE_KEYS.selectedKnowledgeScopes);
   localStorage.removeItem(STORAGE_KEYS.aiSettings);
+  localStorage.removeItem(STORAGE_KEYS.syncSettings);
 }
 
 export function loadKnowledgeEntries() {
@@ -431,4 +460,12 @@ export function loadAiSettings() {
 
 export function saveAiSettings(value) {
   localStorage.setItem(STORAGE_KEYS.aiSettings, JSON.stringify(normalizeAiSettings(value)));
+}
+
+export function loadSyncSettings() {
+  return normalizeSyncSettings(safeParse(localStorage.getItem(STORAGE_KEYS.syncSettings), {}));
+}
+
+export function saveSyncSettings(value) {
+  localStorage.setItem(STORAGE_KEYS.syncSettings, JSON.stringify(normalizeSyncSettings(value)));
 }
