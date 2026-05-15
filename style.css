@@ -1531,29 +1531,55 @@ legend {
 }
 
 .bean-ocr-group {
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(141, 110, 99, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(141, 110, 99, 0.1);
+  display: grid;
+  gap: 6px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(141, 110, 99, 0.035);
+  box-shadow: inset 0 0 0 1px rgba(141, 110, 99, 0.08);
 }
 
-.bean-ocr-actions {
+.bean-ocr-head {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
+.bean-ocr-head label {
+  margin: 0;
+}
+
+.bean-ocr-caption {
+  font-size: 0.72rem;
+  color: rgba(93, 64, 55, 0.72);
+  line-height: 1.25;
+}
+
+.bean-ocr-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .bean-ocr-actions input[type="file"] {
-  flex: 1 1 240px;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.bean-ocr-actions .secondary-button {
+  padding: 7px 12px;
+  font-size: 0.8rem;
 }
 
 .bean-ocr-status {
-  min-height: 20px;
-  margin-top: 8px;
-  font-size: 0.8rem;
+  min-height: 16px;
+  font-size: 0.76rem;
   font-weight: 600;
   color: rgba(93, 64, 55, 0.72);
+  line-height: 1.3;
 }
 
 .bean-ocr-status.is-working {
@@ -2090,9 +2116,20 @@ legend {
     gap: 14px;
   }
 
+  .bean-ocr-group {
+    padding: 8px 10px;
+  }
+
+  .bean-ocr-head {
+    gap: 4px 8px;
+  }
+
   .bean-ocr-actions {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .bean-ocr-actions .secondary-button {
+    width: 100%;
   }
 
   .calendar-donut {
