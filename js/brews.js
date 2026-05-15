@@ -915,12 +915,22 @@ export function bindHomeBrewsPreview() {
   const list = document.getElementById("home-brew-list");
   if (!controls || !dirSelect || !list) return;
   let detailId = "";
+  let highlightId = "";
+  let clearHighlightHandle = 0;
   let criterion = "date";
   const setActive = () => {
     controls.querySelectorAll("[data-sort]").forEach(btn => {
       const isActive = (btn.getAttribute("data-sort") || "") === criterion;
       btn.classList.toggle("chip-active", Boolean(isActive));
     });
+  };
+  const scrollHighlightedBrewIntoView = () => {
+    if (!highlightId) return;
+    window.setTimeout(() => {
+      const target = list.querySelector(`[data-brew-id="${highlightId}"]`);
+      if (!(target instanceof HTMLElement)) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 280);
   };
   const apply = () => {
     const brews = loadBrews().slice();
@@ -933,7 +943,7 @@ export function bindHomeBrewsPreview() {
     } else if (criterion === "machine") {
       brews.sort((a, b) => mul * String(a.coffeeMachine || "").localeCompare(String(b.coffeeMachine || "")));
     }
-    renderBrews(list, brews, detailId);
+    renderBrews(list, brews, detailId, highlightId);
     setActive();
   };
   controls.querySelectorAll("[data-sort]").forEach(btn => {
@@ -957,6 +967,22 @@ export function bindHomeBrewsPreview() {
     }
     detailId = brewId;
     apply();
+  });
+  document.addEventListener("focus-brew", event => {
+    const detail = event instanceof CustomEvent ? event.detail : null;
+    const brewId = detail && detail.brewId ? String(detail.brewId) : "";
+    if (!brewId) return;
+    detailId = brewId;
+    highlightId = brewId;
+    if (clearHighlightHandle) {
+      window.clearTimeout(clearHighlightHandle);
+    }
+    apply();
+    scrollHighlightedBrewIntoView();
+    clearHighlightHandle = window.setTimeout(() => {
+      highlightId = "";
+      apply();
+    }, 3200);
   });
   apply();
   document.addEventListener("brews-updated", apply);
@@ -1032,7 +1058,7 @@ function compareBrewsByDateDesc(a, b) {
   return String((b && b.id) || "").localeCompare(String((a && a.id) || ""));
 }
 
-function renderBrews(list, brews, selectedDetailId = "") {
+function renderBrews(list, brews, selectedDetailId = "", highlightedBrewId = "") {
   list.innerHTML = "";
   if (!brews.length) return;
 
@@ -1046,6 +1072,9 @@ function renderBrews(list, brews, selectedDetailId = "") {
     li.className = "item";
     if (isHomeList && selectedDetailId === brew.id) {
       li.classList.add("item-open");
+    }
+    if (isHomeList && highlightedBrewId === brew.id) {
+      li.classList.add("item-linked-highlight");
     }
     li.dataset.brewId = brew.id;
 

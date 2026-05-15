@@ -18,6 +18,10 @@ import {
   loadSyncSettings
 } from "./storage.js";
 
+const PANEL_IDS = ["home", "tab-brew", "tab-mybrews", "tab-calendar", "tab-beans", "tab-grinders", "tab-machines", "tab-rules", "tab-settings"];
+let currentPanelId = "home";
+let isPanelAnimating = false;
+
 function normalizeScopeId(value) {
   const base = String(value || "")
     .trim()
@@ -256,21 +260,35 @@ function setHeaderFor(targetId) {
   }
 }
 
-function showPanel(targetId) {
-  const ids = ["home", "tab-brew", "tab-mybrews", "tab-calendar", "tab-beans", "tab-grinders", "tab-machines", "tab-rules", "tab-settings"];
-  ids.forEach(id => {
+function getPanelIndex(panelId) {
+  return PANEL_IDS.indexOf(panelId);
+}
+
+function setPanelVisibility(targetId) {
+  PANEL_IDS.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const isActive = id === targetId;
     el.classList.toggle("active", isActive);
     el.style.display = isActive ? "block" : "none";
+    el.classList.remove("is-transitioning");
+    el.style.removeProperty("position");
+    el.style.removeProperty("inset");
+    el.style.removeProperty("width");
+    el.style.removeProperty("z-index");
   });
+}
+
+function finalizePanelChange(targetId) {
   const main = document.querySelector(".app-main");
   if (main) {
+    main.classList.remove("is-panel-transitioning");
+    main.style.removeProperty("min-height");
     main.scrollTop = 0;
   } else {
     window.scrollTo(0, 0);
   }
+  currentPanelId = targetId;
   setHeaderFor(targetId);
   const dataBtn = document.getElementById("data-button");
   if (dataBtn) {
@@ -280,6 +298,156 @@ function showPanel(targetId) {
   if (rulesBar) {
     rulesBar.style.display = targetId === "home" ? "flex" : "none";
   }
+}
+
+function animatePanelChange(fromEl, toEl, direction) {
+  const main = document.querySelector(".app-main");
+  if (!main || !fromEl || !toEl || fromEl === toEl || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    setPanelVisibility(toEl ? toEl.id : currentPanelId);
+    return Promise.resolve();
+  }
+  const fromHeight = fromEl.offsetHeight;
+  toEl.style.display = "block";
+  const toHeight = toEl.offsetHeight;
+  const sign = direction === "backward" ? 1 : -1;
+  const distance = Math.min(92, Math.max(44, Math.round(main.clientWidth * 0.12)));
+  main.classList.add("is-panel-transitioning");
+  main.style.minHeight = `${Math.max(fromHeight, toHeight)}px`;
+
+  [fromEl, toEl].forEach((panel, index) => {
+    panel.style.display = "block";
+    panel.style.position = "absolute";
+    panel.style.inset = "0";
+    panel.style.width = "100%";
+    panel.style.zIndex = index === 0 ? "1" : "2";
+    panel.classList.add("is-transitioning");
+  });
+
+  const outgoing = fromEl.animate(
+    [
+      { transform: "translateX(0)", opacity: 1 },
+      { transform: `translateX(${sign * -distance}px)`, opacity: 0 }
+    ],
+    { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }
+  );
+
+  const incoming = toEl.animate(
+    [
+      { transform: `translateX(${sign * distance}px)`, opacity: 0 },
+      { transform: "translateX(0)", opacity: 1 }
+    ],
+    { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }
+  );
+
+  return Promise.allSettled([outgoing.finished, incoming.finished]).then(() => {
+    setPanelVisibility(toEl.id);
+  });
+}
+
+function showPanel(targetId, options = {}) {
+  if (!targetId || isPanelAnimating && targetId !== currentPanelId) return;
+  const targetEl = document.getElementById(targetId);
+  if (!targetEl) return;
+  if (targetId === currentPanelId) {
+    setPanelVisibility(targetId);
+    finalizePanelChange(targetId);
+    return;
+  }
+  const currentEl = document.getElementById(currentPanelId);
+  const targetIndex = getPanelIndex(targetId);
+  const currentIndex = getPanelIndex(currentPanelId);
+  const inferredDirection = targetIndex > currentIndex ? "forward" : "backward";
+  const direction = options.direction || inferredDirection;
+  const shouldAnimate = options.animate !== false;
+
+  if (!shouldAnimate || !currentEl) {
+    setPanelVisibility(targetId);
+    finalizePanelChange(targetId);
+    return;
+  }
+
+  isPanelAnimating = true;
+  animatePanelChange(currentEl, targetEl, direction)
+    .catch(() => {
+      setPanelVisibility(targetId);
+    })
+    .finally(() => {
+      isPanelAnimating = false;
+      finalizePanelChange(targetId);
+    });
+}
+
+function isSwipeBlockedTarget(target) {
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest("input, textarea, select, button, label, a, summary, [contenteditable='true']"));
+}
+
+function initSwipeNavigation() {
+  const main = document.querySelector(".app-main");
+  if (!main) return;
+  const swipeState = {
+    startX: 0,
+    startY: 0,
+    active: false,
+    blocked: false
+  };
+
+  main.addEventListener("touchstart", event => {
+    if (event.touches.length !== 1 || isPanelAnimating) {
+      swipeState.active = false;
+      return;
+    }
+    swipeState.startX = event.touches[0].clientX;
+    swipeState.startY = event.touches[0].clientY;
+    swipeState.active = true;
+    swipeState.blocked = isSwipeBlockedTarget(event.target);
+  }, { passive: true });
+
+  main.addEventListener("touchend", event => {
+    if (!swipeState.active || swipeState.blocked || isPanelAnimating) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - swipeState.startX;
+    const deltaY = touch.clientY - swipeState.startY;
+    const isHorizontal = Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.35;
+    if (!isHorizontal) return;
+    const currentIndex = getPanelIndex(currentPanelId);
+    const nextIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
+    const nextPanelId = PANEL_IDS[nextIndex];
+    if (!nextPanelId) return;
+    showPanel(nextPanelId, {
+      animate: true,
+      direction: deltaX < 0 ? "forward" : "backward"
+    });
+  }, { passive: true });
+
+  main.addEventListener("touchcancel", () => {
+    swipeState.active = false;
+  }, { passive: true });
+}
+
+function initZoomGuard() {
+  let lastTouchEnd = 0;
+
+  ["gesturestart", "gesturechange", "gestureend"].forEach(eventName => {
+    document.addEventListener(eventName, event => {
+      event.preventDefault();
+    }, { passive: false });
+  });
+
+  document.addEventListener("touchmove", event => {
+    if (event.touches.length > 1) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+
+  document.addEventListener("touchend", event => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 280) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
 }
 
 function initNavigation() {
@@ -322,6 +490,7 @@ function initNavigation() {
     if (!targetId) return;
     showPanel(targetId);
   });
+  initSwipeNavigation();
 }
 
 function initSettings() {
@@ -616,6 +785,7 @@ function initSettings() {
 
 function initApp() {
   migrateIfNeeded();
+  initZoomGuard();
   initNavigation();
   bindBeansUi();
   bindGrindersUi();
