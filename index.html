@@ -28,7 +28,7 @@
 <h1 id="app-title">My Brew</h1>
 <p class="app-subtitle">Coffee log for brews, calendar, and beans</p>
 </div>
-<div class="sync-status-pill" data-sync-status data-state="idle" aria-label="Saved only in this browser. Add Supabase settings to enable backup." title="Saved only in this browser. Add Supabase settings to enable backup.">
+<div class="sync-status-pill" data-sync-status data-state="idle" aria-label="Saved only in this browser. Add Firebase settings to enable backup." title="Saved only in this browser. Add Firebase settings to enable backup.">
 <span class="sync-status-dot" aria-hidden="true"></span>
 <span data-sync-label>Local only</span>
 </div>
@@ -340,7 +340,7 @@
 <p class="settings-hint">Every brew day gets a sticker in the calendar.</p>
 </div>
 <div class="calendar-nav">
-<div class="sync-status-pill calendar-sync-pill" data-sync-status data-state="idle" aria-label="Saved only in this browser. Add Supabase settings to enable backup." title="Saved only in this browser. Add Supabase settings to enable backup.">
+<div class="sync-status-pill calendar-sync-pill" data-sync-status data-state="idle" aria-label="Saved only in this browser. Add Firebase settings to enable backup." title="Saved only in this browser. Add Firebase settings to enable backup.">
 <span class="sync-status-dot" aria-hidden="true"></span>
 <span data-sync-label>Local only</span>
 </div>
@@ -511,32 +511,48 @@ Aroma"></textarea>
 <section class="card">
 <h3>Cloud backup</h3>
 <div class="field-group full-width">
-<label for="sync-supabase-url">Supabase URL</label>
-<input type="url" id="sync-supabase-url" placeholder="https://your-project.supabase.co">
+<label for="sync-firebase-api-key">Firebase API key</label>
+<input type="password" id="sync-firebase-api-key" placeholder="AIza...">
 </div>
 <div class="field-group full-width">
-<label for="sync-supabase-key">Supabase anon key</label>
-<input type="password" id="sync-supabase-key" placeholder="eyJ...">
+<label for="sync-firebase-auth-domain">Auth domain</label>
+<input type="text" id="sync-firebase-auth-domain" placeholder="your-project.firebaseapp.com">
+</div>
+<div class="field-group full-width">
+<label for="sync-firebase-project-id">Project ID</label>
+<input type="text" id="sync-firebase-project-id" placeholder="your-project-id">
+</div>
+<div class="field-group full-width">
+<label for="sync-firebase-storage-bucket">Storage bucket</label>
+<input type="text" id="sync-firebase-storage-bucket" placeholder="your-project.firebasestorage.app">
+</div>
+<div class="field-group full-width">
+<label for="sync-firebase-sender-id">Messaging sender ID</label>
+<input type="text" id="sync-firebase-sender-id" placeholder="1234567890">
+</div>
+<div class="field-group full-width">
+<label for="sync-firebase-app-id">App ID</label>
+<input type="text" id="sync-firebase-app-id" placeholder="1:1234567890:web:abcdef">
 </div>
 <div class="settings-actions">
 <button type="button" id="sync-save-settings" class="secondary-button">Save sync settings</button>
-<button type="button" id="sync-now-button" class="ghost-button">Sync brews now</button>
+<button type="button" id="sync-now-button" class="ghost-button">Sync all now</button>
 </div>
-<p id="sync-settings-hint" class="settings-hint">Use your project URL like <code>https://your-project.supabase.co</code>, not the dashboard URL. When enabled, every saved brew is upserted to table <code>brew_logs</code>.</p>
+<p id="sync-settings-hint" class="settings-hint">When enabled, brews, beans, machines, and bean or machine photos are backed up to Firebase Firestore and Storage. Turn on both products in Firebase before the first sync.</p>
 <details class="danger-zone">
-<summary>Supabase table setup</summary>
-<pre class="setup-code">create table if not exists public.brew_logs (
-  id text primary key,
-  brew_date date,
-  method text,
-  dose_grams numeric,
-  yield_grams numeric,
-  extraction_time numeric,
-  notes text,
-  score numeric,
-  payload jsonb not null,
-  updated_at timestamptz default now()
-);</pre>
+<summary>Firebase setup notes</summary>
+<pre class="setup-code">Firestore collections:
+- brews
+- beans
+- machines
+
+Storage paths:
+- beans/{beanId}.jpg
+- machines/{machineId}.jpg
+
+Recommended while testing:
+- Allow authenticated or temporary open read/write rules
+- Tighten rules after backup is verified</pre>
 </details>
 </section>
 <section class="card">

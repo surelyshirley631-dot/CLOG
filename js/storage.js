@@ -47,7 +47,12 @@ function normalizeBeans(beans) {
         : [bean && bean.roaster, bean && bean.roastDate ? `Roasted ${bean.roastDate}` : "", typeof (bean && bean.initialWeight) === "number" ? `Initial ${bean.initialWeight}g` : ""]
             .filter(Boolean)
             .join(" | "),
-    photoDataUrl: bean && (bean.photoDataUrl || bean.photo) ? String(bean.photoDataUrl || bean.photo) : ""
+    photoDataUrl: bean && (bean.photoDataUrl || bean.photo) ? String(bean.photoDataUrl || bean.photo) : "",
+    photoUrl:
+      bean && (bean.photoUrl || (typeof bean.photoDataUrl === "string" && /^https?:\/\//i.test(bean.photoDataUrl) ? bean.photoDataUrl : ""))
+        ? String(bean.photoUrl || bean.photoDataUrl)
+        : "",
+    photoStoragePath: bean && bean.photoStoragePath ? String(bean.photoStoragePath) : ""
   }));
 }
 
@@ -88,14 +93,20 @@ function normalizeAiSettings(value) {
 
 function normalizeSyncSettings(value) {
   const source = value && typeof value === "object" ? value : {};
-  const rawUrl = source.supabaseUrl ? String(source.supabaseUrl).trim().replace(/\/+$/, "") : "";
-  const dashboardMatch = rawUrl.match(/^https?:\/\/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i);
-  const supabaseUrl = dashboardMatch ? `https://${dashboardMatch[1]}.supabase.co` : rawUrl;
-  const anonKey = source.anonKey ? String(source.anonKey).trim() : "";
+  const apiKey = source.apiKey ? String(source.apiKey).trim() : "";
+  const projectId = source.projectId ? String(source.projectId).trim() : "";
+  const authDomain = source.authDomain ? String(source.authDomain).trim() : projectId ? `${projectId}.firebaseapp.com` : "";
+  const storageBucket = source.storageBucket ? String(source.storageBucket).trim() : projectId ? `${projectId}.firebasestorage.app` : "";
+  const messagingSenderId = source.messagingSenderId ? String(source.messagingSenderId).trim() : "";
+  const appId = source.appId ? String(source.appId).trim() : "";
   return {
-    enabled: Boolean(source.enabled && supabaseUrl && anonKey),
-    supabaseUrl,
-    anonKey,
+    enabled: Boolean(source.enabled && apiKey && authDomain && projectId && storageBucket && messagingSenderId && appId),
+    apiKey,
+    authDomain,
+    projectId,
+    storageBucket,
+    messagingSenderId,
+    appId,
     lastSyncedAt: source.lastSyncedAt ? String(source.lastSyncedAt) : "",
     lastError: source.lastError ? String(source.lastError) : ""
   };
@@ -132,7 +143,12 @@ function normalizeMachines(machines) {
       ...source,
       id: source.id ? String(source.id) : `machine_${Date.now()}_${Math.random().toString(16).slice(2)}`,
       name: source.name ? String(source.name) : "",
-      photoDataUrl: source.photoDataUrl ? String(source.photoDataUrl) : ""
+      photoDataUrl: source.photoDataUrl ? String(source.photoDataUrl) : "",
+      photoUrl:
+        source.photoUrl || (typeof source.photoDataUrl === "string" && /^https?:\/\//i.test(source.photoDataUrl) ? source.photoDataUrl : "")
+          ? String(source.photoUrl || source.photoDataUrl)
+          : "",
+      photoStoragePath: source.photoStoragePath ? String(source.photoStoragePath) : ""
     };
   });
 }
@@ -234,9 +250,20 @@ function mergeImportPayload(payload) {
     apiKey: (payload.aiSettings && payload.aiSettings.apiKey) || (current.aiSettings && current.aiSettings.apiKey) || ""
   });
   const syncSettings = normalizeSyncSettings({
-    enabled: payload.syncSettings && payload.syncSettings.supabaseUrl && payload.syncSettings.anonKey ? payload.syncSettings.enabled : current.syncSettings && current.syncSettings.enabled,
-    supabaseUrl: (payload.syncSettings && payload.syncSettings.supabaseUrl) || (current.syncSettings && current.syncSettings.supabaseUrl) || "",
-    anonKey: (payload.syncSettings && payload.syncSettings.anonKey) || (current.syncSettings && current.syncSettings.anonKey) || "",
+    enabled:
+      payload.syncSettings &&
+      payload.syncSettings.apiKey &&
+      payload.syncSettings.projectId &&
+      payload.syncSettings.appId
+        ? payload.syncSettings.enabled
+        : current.syncSettings && current.syncSettings.enabled,
+    apiKey: (payload.syncSettings && payload.syncSettings.apiKey) || (current.syncSettings && current.syncSettings.apiKey) || "",
+    authDomain: (payload.syncSettings && payload.syncSettings.authDomain) || (current.syncSettings && current.syncSettings.authDomain) || "",
+    projectId: (payload.syncSettings && payload.syncSettings.projectId) || (current.syncSettings && current.syncSettings.projectId) || "",
+    storageBucket: (payload.syncSettings && payload.syncSettings.storageBucket) || (current.syncSettings && current.syncSettings.storageBucket) || "",
+    messagingSenderId:
+      (payload.syncSettings && payload.syncSettings.messagingSenderId) || (current.syncSettings && current.syncSettings.messagingSenderId) || "",
+    appId: (payload.syncSettings && payload.syncSettings.appId) || (current.syncSettings && current.syncSettings.appId) || "",
     lastSyncedAt: (payload.syncSettings && payload.syncSettings.lastSyncedAt) || (current.syncSettings && current.syncSettings.lastSyncedAt) || "",
     lastError: (payload.syncSettings && payload.syncSettings.lastError) || (current.syncSettings && current.syncSettings.lastError) || ""
   });
@@ -372,11 +399,11 @@ export function saveCafes(cafes) {
 }
 
 export function loadBeans() {
-  return safeParse(localStorage.getItem(STORAGE_KEYS.beans), []);
+  return normalizeBeans(safeParse(localStorage.getItem(STORAGE_KEYS.beans), []));
 }
 
 export function saveBeans(beans) {
-  localStorage.setItem(STORAGE_KEYS.beans, JSON.stringify(beans));
+  localStorage.setItem(STORAGE_KEYS.beans, JSON.stringify(normalizeBeans(beans)));
 }
 
 export function loadGrinders() {
@@ -388,11 +415,11 @@ export function saveGrinders(grinders) {
 }
 
 export function loadMachines() {
-  return safeParse(localStorage.getItem(STORAGE_KEYS.machines), []);
+  return normalizeMachines(safeParse(localStorage.getItem(STORAGE_KEYS.machines), []));
 }
 
 export function saveMachines(machines) {
-  localStorage.setItem(STORAGE_KEYS.machines, JSON.stringify(machines));
+  localStorage.setItem(STORAGE_KEYS.machines, JSON.stringify(normalizeMachines(machines)));
 }
 
 export function exportAll() {

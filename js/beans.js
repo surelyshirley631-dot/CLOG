@@ -1,4 +1,5 @@
 import { loadBeans, saveBeans } from "./storage.js";
+import { syncBeanToCloud } from "./sync.js";
 
 function generateId() {
   return `bean_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -65,10 +66,7 @@ function loadImage(src) {
   });
 }
 
-async function toOptimizedPhotoDataUrl(file) {
-  const original = await readFileAsDataUrl(file);
-  const image = await loadImage(original);
-  const maxEdge = 1280;
+function drawImageToCanvas(image, maxEdge, filter = "none") {
   const longestEdge = Math.max(image.width, image.height);
   const scale = longestEdge > maxEdge ? maxEdge / longestEdge : 1;
   const width = Math.max(1, Math.round(image.width * scale));
@@ -76,12 +74,47 @@ async function toOptimizedPhotoDataUrl(file) {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    return original;
-  }
+  const ctx = canvas.getContext("2d", { willReadFrequently: filter !== "none" });
+  if (!ctx) return null;
   ctx.drawImage(image, 0, 0, width, height);
-  return canvas.toDataURL("image/jpeg", 0.82);
+  if (filter === "ocr") {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const { data } = imageData;
+    for (let index = 0; index < data.length; index += 4) {
+      const luminance = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+      const boosted = Math.max(0, Math.min(255, (luminance - 128) * 1.28 + 128));
+      data[index] = boosted;
+      data[index + 1] = boosted;
+      data[index + 2] = boosted;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+  return canvas;
+}
+
+async function toOptimizedPhotoDataUrl(file) {
+  const original = await readFileAsDataUrl(file);
+  const image = await loadImage(original);
+  const attempts = [
+    { maxEdge: 1280, quality: 0.8 },
+    { maxEdge: 1080, quality: 0.74 },
+    { maxEdge: 900, quality: 0.68 },
+    { maxEdge: 768, quality: 0.62 },
+    { maxEdge: 640, quality: 0.56 }
+  ];
+  let best = original;
+  for (const attempt of attempts) {
+    const canvas = drawImageToCanvas(image, attempt.maxEdge);
+    if (!canvas) {
+      return original;
+    }
+    const candidate = canvas.toDataURL("image/jpeg", attempt.quality);
+    best = candidate;
+    if (candidate.length <= 420000) {
+      return candidate;
+    }
+  }
+  return best;
 }
 
 function normalizeOcrLine(line) {
@@ -196,7 +229,10 @@ async function recognizePackageText(file) {
     throw new Error("OCR engine is not loaded yet. Please check your connection and try again.");
   }
   const source = await readFileAsDataUrl(file);
-  const result = await window.Tesseract.recognize(source, "eng", {
+  const image = await loadImage(source);
+  const preparedCanvas = drawImageToCanvas(image, 1800, "ocr");
+  const preparedSource = preparedCanvas ? preparedCanvas.toDataURL("image/png") : source;
+  const result = await window.Tesseract.recognize(preparedSource, "eng", {
     logger: () => {}
   });
   return result && result.data && typeof result.data.text === "string" ? result.data.text : "";
@@ -293,6 +329,7 @@ export function bindBeansUi() {
     const name = nameInput.value.trim();
     if (!name) return;
     const beans = loadBeans();
+    const savedBeanId = editingId;
     const beanType = typeSelect ? typeSelect.value : "";
     const roastType = roastTypeSelect ? roastTypeSelect.value : "";
     const openDate = openDateInput ? openDateInput.value : "";
@@ -350,6 +387,12 @@ export function bindBeansUi() {
     setOcrStatus("");
     renderBeans(list, beans);
     document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans } }));
+    const savedBean = savedBeanId ? beans.find(bean => bean.id === savedBeanId) : beans[0];
+    if (savedBean) {
+      syncBeanToCloud(savedBean).catch(error => {
+        console.error("Bean cloud backup failed", error);
+      });
+    }
   });
 
   clearBtn.addEventListener("click", () => {

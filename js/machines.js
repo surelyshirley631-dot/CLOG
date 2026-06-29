@@ -1,7 +1,68 @@
 import { loadMachines, saveMachines } from "./storage.js";
+import { syncMachineToCloud } from "./sync.js";
 
 function generateId() {
   return `machine_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("machine-image-load-failed"));
+    image.src = dataUrl;
+  });
+}
+
+async function optimizeMachinePhoto(file) {
+  if (!file) return "";
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(new Error("machine-photo-read-failed"));
+    reader.readAsDataURL(file);
+  });
+  if (!dataUrl) return "";
+  try {
+    const image = await loadImageFromDataUrl(dataUrl);
+    const attempts = [
+      { maxEdge: 1280, quality: 0.78 },
+      { maxEdge: 1080, quality: 0.72 },
+      { maxEdge: 900, quality: 0.66 },
+      { maxEdge: 768, quality: 0.6 },
+      { maxEdge: 640, quality: 0.54 }
+    ];
+    let best = dataUrl;
+    for (const attempt of attempts) {
+      const ratio = Math.min(1, attempt.maxEdge / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * ratio));
+      const height = Math.max(1, Math.round(image.height * ratio));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) return dataUrl;
+      context.drawImage(image, 0, 0, width, height);
+      const candidate = canvas.toDataURL("image/jpeg", attempt.quality);
+      best = candidate;
+      if (candidate.length <= 320000) {
+        return candidate;
+      }
+    }
+    return best;
+  } catch {
+    return dataUrl;
+  }
+}
+
+function trySaveMachines(machines) {
+  try {
+    saveMachines(machines);
+    return true;
+  } catch {
+    window.alert("Upload failed: the photo is too large for local storage. Try a smaller image.");
+    return false;
+  }
 }
 
 export function getMachines() {
@@ -81,12 +142,13 @@ export function bindMachinesUi() {
 
   let editingId = null;
 
-  form.addEventListener("submit", event => {
+  form.addEventListener("submit", async event => {
     event.preventDefault();
     const name = nameInput.value.trim();
     const notes = notesInput ? notesInput.value.trim() : "";
     if (!name) return;
     const machines = loadMachines();
+    const savedMachineId = editingId;
     const file = photoInput && photoInput.files ? photoInput.files[0] : null;
 
     const finalize = photoDataUrl => {
@@ -110,7 +172,7 @@ export function bindMachinesUi() {
           photoDataUrl: photoDataUrl || ""
         });
       }
-      saveMachines(machines);
+      if (!trySaveMachines(machines)) return;
       editingId = null;
       nameInput.value = "";
       if (notesInput) {
@@ -120,19 +182,26 @@ export function bindMachinesUi() {
         photoInput.value = "";
       }
       renderMachineList(list, machines);
-      const select = document.getElementById("coffee-machine");
+      const select = document.getElementById("brew-machine");
       if (select) {
         renderMachineOptions(select);
       }
       document.dispatchEvent(new CustomEvent("machines-updated", { detail: { machines } }));
+      const savedMachine = savedMachineId ? machines.find(machine => machine.id === savedMachineId) : machines[machines.length - 1];
+      if (savedMachine) {
+        syncMachineToCloud(savedMachine).catch(error => {
+          console.error("Machine cloud backup failed", error);
+        });
+      }
     };
 
     if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        finalize(typeof reader.result === "string" ? reader.result : "");
-      };
-      reader.readAsDataURL(file);
+      try {
+        const photoDataUrl = await optimizeMachinePhoto(file);
+        finalize(photoDataUrl);
+      } catch {
+        window.alert("Machine photo could not be processed. Please try another image.");
+      }
     } else {
       finalize("");
     }
@@ -163,7 +232,7 @@ export function bindMachinesUi() {
     saveMachines([]);
     editingId = null;
     renderMachineList(list, []);
-    const select = document.getElementById("coffee-machine");
+    const select = document.getElementById("brew-machine");
     if (select) {
       renderMachineOptions(select);
     }
@@ -172,7 +241,7 @@ export function bindMachinesUi() {
 
   const initial = loadMachines();
   renderMachineList(list, initial);
-  const select = document.getElementById("coffee-machine");
+  const select = document.getElementById("brew-machine");
   if (select) {
     renderMachineOptions(select);
   }

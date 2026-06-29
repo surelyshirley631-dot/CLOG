@@ -3,7 +3,7 @@ import { bindBeansUi } from "./beans.js";
 import { bindGrindersUi } from "./grinders.js";
 import { bindMachinesUi } from "./machines.js";
 import { bindCoffeeCalendarUi } from "./calendar.js";
-import { bindSyncStatusUi, initSyncStatus, saveCloudSyncSettings, syncAllBrewsToCloud } from "./sync.js";
+import { bindSyncStatusUi, initSyncStatus, saveCloudSyncSettings, syncAllDataToCloud } from "./sync.js";
 import {
   exportAll,
   importAll,
@@ -22,6 +22,14 @@ const PANEL_IDS = ["home", "tab-brew", "tab-mybrews", "tab-calendar", "tab-beans
 const SWIPE_PANEL_IDS = PANEL_IDS.filter(id => id !== "tab-settings");
 let currentPanelId = "home";
 let isPanelAnimating = false;
+const DEFAULT_FIREBASE_SYNC_CONFIG = {
+  apiKey: "AIzaSyBUrRIeYFS7bTgasKAXtzdumrso0fjK9SA",
+  authDomain: "mybrewsshirley.firebaseapp.com",
+  projectId: "mybrewsshirley",
+  storageBucket: "mybrewsshirley.firebasestorage.app",
+  messagingSenderId: "423587761001",
+  appId: "1:423587761001:web:00f9312129383cb19ccbf8"
+};
 
 function normalizeScopeId(value) {
   const base = String(value || "")
@@ -269,6 +277,23 @@ function isSwipePanel(panelId) {
   return SWIPE_PANEL_IDS.includes(panelId);
 }
 
+function resetPanelTransitionStyles(panel) {
+  panel.classList.remove("is-transitioning");
+  panel.style.removeProperty("position");
+  panel.style.removeProperty("inset");
+  panel.style.removeProperty("width");
+  panel.style.removeProperty("z-index");
+  panel.style.removeProperty("transform");
+  panel.style.removeProperty("opacity");
+}
+
+function clearPanelTransitionShell() {
+  const main = document.querySelector(".app-main");
+  if (!main) return;
+  main.classList.remove("is-panel-transitioning");
+  main.style.removeProperty("min-height");
+}
+
 function setPanelVisibility(targetId) {
   PANEL_IDS.forEach(id => {
     const el = document.getElementById(id);
@@ -276,19 +301,14 @@ function setPanelVisibility(targetId) {
     const isActive = id === targetId;
     el.classList.toggle("active", isActive);
     el.style.display = isActive ? "block" : "none";
-    el.classList.remove("is-transitioning");
-    el.style.removeProperty("position");
-    el.style.removeProperty("inset");
-    el.style.removeProperty("width");
-    el.style.removeProperty("z-index");
+    resetPanelTransitionStyles(el);
   });
 }
 
 function finalizePanelChange(targetId) {
   const main = document.querySelector(".app-main");
   if (main) {
-    main.classList.remove("is-panel-transitioning");
-    main.style.removeProperty("min-height");
+    clearPanelTransitionShell();
     main.scrollTop = 0;
   } else {
     window.scrollTo(0, 0);
@@ -305,21 +325,12 @@ function finalizePanelChange(targetId) {
   }
 }
 
-function animatePanelChange(fromEl, toEl, direction) {
-  const main = document.querySelector(".app-main");
-  if (!main || !fromEl || !toEl || fromEl === toEl || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    setPanelVisibility(toEl ? toEl.id : currentPanelId);
-    return Promise.resolve();
-  }
+function preparePanelTransition(main, fromEl, toEl) {
   const fromHeight = fromEl.offsetHeight;
   toEl.style.display = "block";
   const toHeight = toEl.offsetHeight;
-  const sign = direction === "backward" ? 1 : -1;
-  const incomingOffset = Math.min(Math.round(main.clientWidth * 0.56), 280);
-  const outgoingOffset = Math.min(Math.round(main.clientWidth * 0.24), 120);
   main.classList.add("is-panel-transitioning");
   main.style.minHeight = `${Math.max(fromHeight, toHeight)}px`;
-
   [fromEl, toEl].forEach((panel, index) => {
     panel.style.display = "block";
     panel.style.position = "absolute";
@@ -328,21 +339,55 @@ function animatePanelChange(fromEl, toEl, direction) {
     panel.style.zIndex = index === 0 ? "1" : "2";
     panel.classList.add("is-transitioning");
   });
+}
+
+function applySwipePose(fromEl, toEl, direction, progress, width) {
+  const clamped = Math.max(0, Math.min(1, progress));
+  const outgoingSign = direction === "forward" ? -1 : 1;
+  const incomingSign = -outgoingSign;
+  const eased = 1 - Math.pow(1 - clamped, 1.18);
+  const edgeResistance = 1 - Math.pow(clamped, 1.7) * 0.1284;
+  const outgoingX = outgoingSign * width * 0.12 * eased * edgeResistance;
+  const incomingX = incomingSign * width * 0.62 * (1 - eased * 0.98) * edgeResistance;
+  const outgoingScale = 1 - eased * 0.012;
+  const incomingScale = 0.992 + eased * 0.008;
+  const outgoingOpacity = 1 - eased * 0.24;
+  const incomingOpacity = 0.86 + eased * 0.14;
+  fromEl.style.transform = `translate3d(${outgoingX}px, 0, 0) scale(${outgoingScale})`;
+  fromEl.style.opacity = String(outgoingOpacity);
+  toEl.style.transform = `translate3d(${incomingX}px, 0, 0) scale(${incomingScale})`;
+  toEl.style.opacity = String(incomingOpacity);
+}
+
+function animatePanelChange(fromEl, toEl, direction) {
+  const main = document.querySelector(".app-main");
+  if (!main || !fromEl || !toEl || fromEl === toEl || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    setPanelVisibility(toEl ? toEl.id : currentPanelId);
+    return Promise.resolve();
+  }
+  const outgoingSign = direction === "forward" ? -1 : 1;
+  const incomingSign = -outgoingSign;
+  const panelWidth = main.clientWidth || window.innerWidth || 360;
+  const incomingOffset = Math.min(Math.round(panelWidth * 0.62), 300);
+  const outgoingOffset = Math.min(Math.round(panelWidth * 0.12), 64);
+  preparePanelTransition(main, fromEl, toEl);
 
   const outgoing = fromEl.animate(
     [
       { transform: "translateX(0) scale(1)", opacity: 1 },
-      { transform: `translateX(${sign * -outgoingOffset}px) scale(0.985)`, opacity: 0.52 }
+      { transform: `translateX(${outgoingSign * outgoingOffset * 0.88}px) scale(0.992)`, opacity: 0.82, offset: 0.7 },
+      { transform: `translateX(${outgoingSign * outgoingOffset}px) scale(0.988)`, opacity: 0.76 }
     ],
-    { duration: 420, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "forwards" }
+    { duration: 340, easing: "cubic-bezier(0.22, 0.9, 0.3, 1)", fill: "forwards" }
   );
 
   const incoming = toEl.animate(
     [
-      { transform: `translateX(${sign * incomingOffset}px) scale(0.982)`, opacity: 0.72 },
+      { transform: `translateX(${incomingSign * incomingOffset}px) scale(0.992)`, opacity: 0.86 },
+      { transform: "translateX(-4px) scale(1.002)", opacity: 0.98, offset: 0.76 },
       { transform: "translateX(0) scale(1)", opacity: 1 }
     ],
-    { duration: 460, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "forwards" }
+    { duration: 360, easing: "cubic-bezier(0.22, 0.9, 0.3, 1)", fill: "forwards" }
   );
 
   return Promise.allSettled([outgoing.finished, incoming.finished]).then(() => {
@@ -395,33 +440,157 @@ function initSwipeNavigation() {
   const swipeState = {
     startX: 0,
     startY: 0,
+    startTime: 0,
     active: false,
-    blocked: false
+    blocked: false,
+    dragging: false,
+    direction: "",
+    targetId: "",
+    currentEl: null,
+    targetEl: null,
+    panelWidth: 0,
+    deltaX: 0
+  };
+
+  const resetSwipeState = () => {
+    swipeState.active = false;
+    swipeState.blocked = false;
+    swipeState.dragging = false;
+    swipeState.direction = "";
+    swipeState.targetId = "";
+    swipeState.currentEl = null;
+    swipeState.targetEl = null;
+    swipeState.panelWidth = 0;
+    swipeState.deltaX = 0;
+  };
+
+  const restoreCurrentPanel = () => {
+    if (swipeState.currentEl) {
+      setPanelVisibility(currentPanelId);
+      clearPanelTransitionShell();
+    }
+    resetSwipeState();
   };
 
   main.addEventListener("touchstart", event => {
     if (event.touches.length !== 1 || isPanelAnimating || !isSwipePanel(currentPanelId)) {
-      swipeState.active = false;
+      resetSwipeState();
       return;
     }
     swipeState.startX = event.touches[0].clientX;
     swipeState.startY = event.touches[0].clientY;
+    swipeState.startTime = performance.now();
     swipeState.active = true;
     swipeState.blocked = isSwipeBlockedTarget(event.target);
   }, { passive: true });
+
+  main.addEventListener("touchmove", event => {
+    if (!swipeState.active || swipeState.blocked || isPanelAnimating) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - swipeState.startX;
+    const deltaY = touch.clientY - swipeState.startY;
+
+    if (!swipeState.dragging) {
+      if (Math.abs(deltaY) > 14 && Math.abs(deltaY) > Math.abs(deltaX)) {
+        resetSwipeState();
+        return;
+      }
+      if (Math.abs(deltaX) < 12 || Math.abs(deltaX) < Math.abs(deltaY) * 1.1) return;
+      const currentIndex = getPanelIndex(currentPanelId);
+      const nextIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
+      const nextPanelId = SWIPE_PANEL_IDS[nextIndex];
+      if (!nextPanelId) {
+        resetSwipeState();
+        return;
+      }
+      swipeState.dragging = true;
+      swipeState.direction = deltaX < 0 ? "forward" : "backward";
+      swipeState.targetId = nextPanelId;
+      swipeState.currentEl = document.getElementById(currentPanelId);
+      swipeState.targetEl = document.getElementById(nextPanelId);
+      swipeState.panelWidth = main.clientWidth || window.innerWidth || 360;
+      if (!swipeState.currentEl || !swipeState.targetEl) {
+        resetSwipeState();
+        return;
+      }
+      preparePanelTransition(main, swipeState.currentEl, swipeState.targetEl);
+    }
+
+    event.preventDefault();
+    swipeState.deltaX = deltaX;
+    const progress = Math.min(Math.abs(deltaX) / swipeState.panelWidth, 1);
+    applySwipePose(swipeState.currentEl, swipeState.targetEl, swipeState.direction, progress, swipeState.panelWidth);
+  }, { passive: false });
 
   main.addEventListener("touchend", event => {
     if (!swipeState.active || swipeState.blocked || isPanelAnimating) return;
     const touch = event.changedTouches[0];
     if (!touch) return;
-    const deltaX = touch.clientX - swipeState.startX;
+    const deltaX = swipeState.dragging ? swipeState.deltaX : touch.clientX - swipeState.startX;
     const deltaY = touch.clientY - swipeState.startY;
+    if (swipeState.dragging && swipeState.currentEl && swipeState.targetEl) {
+      const elapsed = Math.max(1, performance.now() - swipeState.startTime);
+      const velocity = Math.abs(deltaX) / elapsed;
+      const progress = Math.min(Math.abs(deltaX) / swipeState.panelWidth, 1);
+      const shouldCommit = progress > 0.18 || velocity > 0.48;
+      isPanelAnimating = true;
+      const direction = swipeState.direction;
+      const fromEl = swipeState.currentEl;
+      const toEl = swipeState.targetEl;
+      const targetId = swipeState.targetId;
+      const fromFrames = shouldCommit
+        ? [
+            { transform: fromEl.style.transform || "translate3d(0px, 0, 0) scale(1)", opacity: Number(fromEl.style.opacity || "1") },
+            { transform: `translate3d(${direction === "forward" ? -Math.min(swipeState.panelWidth * 0.12, 64) : Math.min(swipeState.panelWidth * 0.12, 64)}px, 0, 0) scale(0.988)`, opacity: 0.76 }
+          ]
+        : [
+            { transform: fromEl.style.transform || "translate3d(0px, 0, 0) scale(1)", opacity: Number(fromEl.style.opacity || "1") },
+            { transform: "translate3d(0px, 0, 0) scale(1)", opacity: 1 }
+          ];
+      const toFrames = shouldCommit
+        ? [
+            { transform: toEl.style.transform || "translate3d(0px, 0, 0) scale(1)", opacity: Number(toEl.style.opacity || "1") },
+            { transform: "translate3d(0px, 0, 0) scale(1)", opacity: 1 }
+          ]
+        : [
+            { transform: toEl.style.transform || "translate3d(0px, 0, 0) scale(1)", opacity: Number(toEl.style.opacity || "1") },
+            {
+              transform: `translate3d(${direction === "forward" ? swipeState.panelWidth * 0.62 : -swipeState.panelWidth * 0.62}px, 0, 0) scale(0.992)`,
+              opacity: 0.86
+            }
+          ];
+      const duration = shouldCommit ? 280 : 220;
+      const easing = shouldCommit ? "cubic-bezier(0.22, 0.9, 0.3, 1)" : "cubic-bezier(0.2, 0.86, 0.24, 1)";
+      const outgoing = fromEl.animate(fromFrames, { duration, easing, fill: "forwards" });
+      const incoming = toEl.animate(toFrames, { duration, easing, fill: "forwards" });
+      Promise.allSettled([outgoing.finished, incoming.finished]).finally(() => {
+        if (shouldCommit) {
+          setPanelVisibility(targetId);
+          finalizePanelChange(targetId);
+        } else {
+          setPanelVisibility(currentPanelId);
+          clearPanelTransitionShell();
+        }
+        isPanelAnimating = false;
+        resetSwipeState();
+      });
+      return;
+    }
+
     const isHorizontal = Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.35;
-    if (!isHorizontal) return;
+    if (!isHorizontal) {
+      resetSwipeState();
+      return;
+    }
     const currentIndex = getPanelIndex(currentPanelId);
     const nextIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
     const nextPanelId = SWIPE_PANEL_IDS[nextIndex];
-    if (!nextPanelId) return;
+    if (!nextPanelId) {
+      resetSwipeState();
+      return;
+    }
+    resetSwipeState();
     showPanel(nextPanelId, {
       animate: true,
       direction: deltaX < 0 ? "forward" : "backward"
@@ -429,7 +598,11 @@ function initSwipeNavigation() {
   }, { passive: true });
 
   main.addEventListener("touchcancel", () => {
-    swipeState.active = false;
+    if (swipeState.dragging) {
+      restoreCurrentPanel();
+      return;
+    }
+    resetSwipeState();
   }, { passive: true });
 }
 
@@ -586,8 +759,12 @@ function initSettings() {
   const apiKeyInput = document.getElementById("insight-api-key");
   const saveModelBtn = document.getElementById("insight-save-settings");
   const modelHint = document.getElementById("insight-model-hint");
-  const syncUrlInput = document.getElementById("sync-supabase-url");
-  const syncKeyInput = document.getElementById("sync-supabase-key");
+  const syncApiKeyInput = document.getElementById("sync-firebase-api-key");
+  const syncAuthDomainInput = document.getElementById("sync-firebase-auth-domain");
+  const syncProjectIdInput = document.getElementById("sync-firebase-project-id");
+  const syncStorageBucketInput = document.getElementById("sync-firebase-storage-bucket");
+  const syncSenderIdInput = document.getElementById("sync-firebase-sender-id");
+  const syncAppIdInput = document.getElementById("sync-firebase-app-id");
   const syncSaveBtn = document.getElementById("sync-save-settings");
   const syncNowBtn = document.getElementById("sync-now-button");
   const syncHint = document.getElementById("sync-settings-hint");
@@ -719,17 +896,21 @@ function initSettings() {
 
   const renderSyncSettings = () => {
     const settings = loadSyncSettings();
-    if (syncUrlInput) syncUrlInput.value = settings.supabaseUrl || "";
-    if (syncKeyInput) syncKeyInput.value = settings.anonKey || "";
+    if (syncApiKeyInput) syncApiKeyInput.value = settings.apiKey || DEFAULT_FIREBASE_SYNC_CONFIG.apiKey;
+    if (syncAuthDomainInput) syncAuthDomainInput.value = settings.authDomain || DEFAULT_FIREBASE_SYNC_CONFIG.authDomain;
+    if (syncProjectIdInput) syncProjectIdInput.value = settings.projectId || DEFAULT_FIREBASE_SYNC_CONFIG.projectId;
+    if (syncStorageBucketInput) syncStorageBucketInput.value = settings.storageBucket || DEFAULT_FIREBASE_SYNC_CONFIG.storageBucket;
+    if (syncSenderIdInput) syncSenderIdInput.value = settings.messagingSenderId || DEFAULT_FIREBASE_SYNC_CONFIG.messagingSenderId;
+    if (syncAppIdInput) syncAppIdInput.value = settings.appId || DEFAULT_FIREBASE_SYNC_CONFIG.appId;
     if (syncHint) {
       if (settings.enabled && settings.lastSyncedAt) {
         syncHint.textContent = `Auto backup is enabled. Last sync: ${new Date(settings.lastSyncedAt).toLocaleString()}.`;
       } else if (settings.enabled) {
-        syncHint.textContent = "Auto backup is enabled. New brews will sync to Supabase table brew_logs.";
-      } else if (settings.supabaseUrl && !settings.anonKey) {
-        syncHint.textContent = "Project URL saved. Backup is still in Local only mode until you add the Supabase anon key.";
+        syncHint.textContent = "Auto backup is enabled. New brews, beans, machines, and photos will sync to Firebase. Make sure Firestore and Storage are both turned on.";
+      } else if (settings.projectId && !settings.appId) {
+        syncHint.textContent = "Firebase project info is partly filled in. Add the remaining Web app config to enable cloud backup.";
       } else {
-        syncHint.textContent = "When enabled, every saved brew is upserted to Supabase table brew_logs.";
+        syncHint.textContent = "When enabled, brews, beans, machines, and bean or machine photos are backed up to Firebase Firestore and Storage. Turn on both products before the first sync.";
       }
     }
   };
@@ -750,12 +931,20 @@ function initSettings() {
 
   if (syncSaveBtn) {
     syncSaveBtn.addEventListener("click", async () => {
-      const supabaseUrl = syncUrlInput ? syncUrlInput.value.trim() : "";
-      const anonKey = syncKeyInput ? syncKeyInput.value.trim() : "";
+      const apiKey = syncApiKeyInput ? syncApiKeyInput.value.trim() : "";
+      const authDomain = syncAuthDomainInput ? syncAuthDomainInput.value.trim() : "";
+      const projectId = syncProjectIdInput ? syncProjectIdInput.value.trim() : "";
+      const storageBucket = syncStorageBucketInput ? syncStorageBucketInput.value.trim() : "";
+      const messagingSenderId = syncSenderIdInput ? syncSenderIdInput.value.trim() : "";
+      const appId = syncAppIdInput ? syncAppIdInput.value.trim() : "";
       const settings = saveCloudSyncSettings({
-        enabled: Boolean(supabaseUrl && anonKey),
-        supabaseUrl,
-        anonKey
+        enabled: Boolean(apiKey && authDomain && projectId && storageBucket && messagingSenderId && appId),
+        apiKey,
+        authDomain,
+        projectId,
+        storageBucket,
+        messagingSenderId,
+        appId
       });
       renderSyncSettings();
       if (!settings.enabled) {
@@ -763,9 +952,9 @@ function initSettings() {
         return;
       }
       try {
-        await syncAllBrewsToCloud();
+        await syncAllDataToCloud();
         renderSyncSettings();
-        window.alert("Supabase sync configured. Existing brews have been backed up.");
+        window.alert("Firebase backup configured. Existing brews, beans, machines, and photos have been synced.");
       } catch (error) {
         renderSyncSettings();
         window.alert(`Sync setup saved, but backup failed: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -776,9 +965,9 @@ function initSettings() {
   if (syncNowBtn) {
     syncNowBtn.addEventListener("click", async () => {
       try {
-        await syncAllBrewsToCloud();
+        await syncAllDataToCloud();
         renderSyncSettings();
-        window.alert("Brews synced to cloud.");
+        window.alert("Brews, beans, machines, and photos synced to Firebase.");
       } catch (error) {
         renderSyncSettings();
         window.alert(`Cloud sync failed: ${error instanceof Error ? error.message : "Unknown error"}`);
