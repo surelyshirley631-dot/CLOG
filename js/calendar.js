@@ -2,7 +2,6 @@ import { loadBrews } from "./storage.js";
 import { getBeans } from "./beans.js";
 
 const STICKER_PRIMARY = "./sticker.png";
-const STICKER_FALLBACK = "./sticker.jpg";
 const BREW_RHYTHM_COLOR = "150, 112, 92";
 let stickerSourcePromise = null;
 
@@ -61,7 +60,7 @@ function loadImageSource(src) {
 }
 
 async function buildProcessedStickerSource() {
-  const image = await loadImageSource(STICKER_PRIMARY).catch(() => loadImageSource(STICKER_FALLBACK));
+  const image = await loadImageSource(STICKER_PRIMARY);
   const canvas = document.createElement("canvas");
   canvas.width = image.width;
   canvas.height = image.height;

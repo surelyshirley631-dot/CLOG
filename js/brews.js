@@ -105,6 +105,7 @@ function fillBrewFormValues(brew) {
   if (scoreSelect) scoreSelect.value = brew.score != null ? String(brew.score) : "";
   if (notesInput) notesInput.value = brew.notes || "";
   stopBrewTimer();
+  resetPowerReminderState();
   syncBrewScoreRatingUi();
   syncFormTimerDisplay();
 }
@@ -153,6 +154,166 @@ let brewTimerElapsedMs = 0;
 let brewTimerRunning = false;
 let brewTimerTickHandle = null;
 let brewTimerStartedAtMs = 0;
+let powerReminderArmed = false;
+let powerReminderTriggered = false;
+let powerReminderAudioContext = null;
+
+function getPowerReminderStatusEl() {
+  return document.getElementById("brew-power-reminder-status");
+}
+
+function getPowerReminderModal() {
+  let modal = document.getElementById("brew-power-reminder-modal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "brew-power-reminder-modal";
+  modal.className = "brew-power-reminder-modal";
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="brew-power-reminder-backdrop" data-action="dismiss"></div>
+    <div class="brew-power-reminder-dialog" role="dialog" aria-modal="true" aria-labelledby="brew-power-reminder-title">
+      <div class="brew-power-reminder-kicker">Machine Reminder</div>
+      <h3 id="brew-power-reminder-title">Power off the machine</h3>
+      <p>Your timer is done and your notes plus score are complete. You can switch the machine off now.</p>
+      <button type="button" class="primary-button brew-power-reminder-button" data-action="dismiss">Got it</button>
+    </div>
+  `;
+  modal.addEventListener("click", event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.action !== "dismiss") return;
+    hidePowerReminderModal();
+  });
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function hidePowerReminderModal() {
+  const modal = document.getElementById("brew-power-reminder-modal");
+  if (!modal) return;
+  modal.hidden = true;
+}
+
+function showPowerReminderModal() {
+  const modal = getPowerReminderModal();
+  modal.hidden = false;
+  const actionBtn = modal.querySelector(".brew-power-reminder-button");
+  if (actionBtn instanceof HTMLButtonElement) {
+    window.setTimeout(() => actionBtn.focus(), 20);
+  }
+}
+
+function isPowerReminderFormComplete() {
+  const notesInput = document.getElementById("brew-notes");
+  const scoreInput = document.getElementById("brew-score");
+  const notesDone = Boolean(notesInput && notesInput.value.trim());
+  const scoreDone = Boolean(scoreInput && (Number(scoreInput.value) || 0) > 0);
+  return notesDone && scoreDone;
+}
+
+function updatePowerReminderStatus() {
+  const statusEl = getPowerReminderStatusEl();
+  if (!statusEl) return;
+  if (powerReminderTriggered) {
+    statusEl.dataset.state = "done";
+    statusEl.textContent = "Power-off reminder sent. You can switch off the machine now.";
+    return;
+  }
+  if (brewTimerRunning) {
+    statusEl.dataset.state = "running";
+    statusEl.textContent = "Timer running. The power-off reminder will arm after you stop the timer.";
+    return;
+  }
+  if (powerReminderArmed) {
+    statusEl.dataset.state = "armed";
+    statusEl.textContent = isPowerReminderFormComplete()
+      ? "Reminder armed. Sending the power-off alert..."
+      : "Reminder armed. Finish notes and score to trigger the power-off alert.";
+    return;
+  }
+  statusEl.dataset.state = "idle";
+  statusEl.textContent = "Power-off reminder waits until timer, notes, and score are complete.";
+}
+
+function resetPowerReminderState() {
+  powerReminderArmed = false;
+  powerReminderTriggered = false;
+  hidePowerReminderModal();
+  updatePowerReminderStatus();
+}
+
+async function playPowerReminderTone() {
+  const AudioContextCtor = window.AudioContext || window["webkitAudioContext"];
+  if (!AudioContextCtor) return;
+  if (!powerReminderAudioContext) {
+    powerReminderAudioContext = new AudioContextCtor();
+  }
+  if (powerReminderAudioContext.state === "suspended") {
+    try {
+      await powerReminderAudioContext.resume();
+    } catch {
+      return;
+    }
+  }
+  const beepDurations = [0.11, 0.13, 0.18];
+  const beepFrequencies = [880, 740, 880];
+  const startAt = powerReminderAudioContext.currentTime + 0.02;
+  beepDurations.forEach((duration, index) => {
+    const oscillator = powerReminderAudioContext.createOscillator();
+    const gain = powerReminderAudioContext.createGain();
+    const offset = index * 0.19;
+    oscillator.type = "sine";
+    oscillator.frequency.value = beepFrequencies[index];
+    gain.gain.setValueAtTime(0.0001, startAt + offset);
+    gain.gain.exponentialRampToValueAtTime(0.16, startAt + offset + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + offset + duration);
+    oscillator.connect(gain);
+    gain.connect(powerReminderAudioContext.destination);
+    oscillator.start(startAt + offset);
+    oscillator.stop(startAt + offset + duration + 0.02);
+  });
+}
+
+async function triggerNativePowerReminder() {
+  const capacitor = window.Capacitor;
+  const haptics = capacitor && capacitor.Plugins ? capacitor.Plugins.Haptics : null;
+  if (haptics) {
+    try {
+      await haptics.notification({ type: "WARNING" });
+      await haptics.vibrate({ duration: 280 });
+      return;
+    } catch {}
+  }
+  if (navigator.vibrate) {
+    navigator.vibrate([160, 70, 220]);
+  }
+}
+
+function triggerPowerReminder() {
+  if (powerReminderTriggered) return;
+  powerReminderTriggered = true;
+  powerReminderArmed = false;
+  updatePowerReminderStatus();
+  showPowerReminderModal();
+  playPowerReminderTone().catch(() => {});
+  triggerNativePowerReminder().catch(() => {});
+}
+
+function evaluatePowerReminder() {
+  if (brewTimerRunning || !powerReminderArmed || powerReminderTriggered) {
+    updatePowerReminderStatus();
+    return;
+  }
+  if (brewTimerElapsedMs <= 0) {
+    updatePowerReminderStatus();
+    return;
+  }
+  if (!isPowerReminderFormComplete()) {
+    updatePowerReminderStatus();
+    return;
+  }
+  triggerPowerReminder();
+}
 
 function getCurrentTimerElapsedMs() {
   if (!brewTimerRunning) return brewTimerElapsedMs;
@@ -180,6 +341,7 @@ function setTimerRunningState() {
 }
 
 function stopBrewTimer() {
+  const wasRunning = brewTimerRunning;
   if (brewTimerRunning) {
     brewTimerElapsedMs = getCurrentTimerElapsedMs();
   }
@@ -189,10 +351,18 @@ function stopBrewTimer() {
   }
   brewTimerRunning = false;
   setTimerRunningState();
+  if (wasRunning && brewTimerElapsedMs > 0) {
+    powerReminderArmed = true;
+    powerReminderTriggered = false;
+  }
+  evaluatePowerReminder();
 }
 
 function startBrewTimer() {
   if (brewTimerRunning) return;
+  hidePowerReminderModal();
+  powerReminderArmed = false;
+  powerReminderTriggered = false;
   brewTimerRunning = true;
   brewTimerStartedAtMs = performance.now();
   brewTimerTickHandle = window.setInterval(() => {
@@ -200,6 +370,7 @@ function startBrewTimer() {
   }, 31);
   setTimerRunningState();
   syncFormTimerDisplay();
+  updatePowerReminderStatus();
 }
 
 function resetBrewTimer() {
@@ -207,6 +378,7 @@ function resetBrewTimer() {
   brewTimerElapsedMs = 0;
   syncFormTimerDisplay();
   setTimerRunningState();
+  resetPowerReminderState();
 }
 
 function bindBrewTimerControls() {
@@ -230,6 +402,7 @@ function bindBrewTimerControls() {
     });
   }
   setTimerRunningState();
+  updatePowerReminderStatus();
 }
 
 function extractMeaningfulNotes(notes) {
@@ -598,6 +771,7 @@ function syncBrewScoreRatingUi() {
   if (valueLabel) {
     valueLabel.textContent = score > 0 ? `${score}/10` : "Not Rated";
   }
+  evaluatePowerReminder();
 }
 
 function initBrewScoreRatingUi() {
@@ -843,6 +1017,7 @@ export function bindBrewsUi() {
   const grinderSelect = document.getElementById("brew-grinder");
   const tipsCard = document.getElementById("brew-tips-card");
   const tipsList = document.getElementById("brew-tips-list");
+  const notesInput = document.getElementById("brew-notes");
   if (!form || !list || !clearBtn || !beanSelect || !machineSelect || !grinderSelect || !tipsCard || !tipsList) return;
 
   let editingId = null;
@@ -854,6 +1029,12 @@ export function bindBrewsUi() {
   bindBrewTimerControls();
   stopBrewTimer();
   syncFormTimerDisplay();
+  updatePowerReminderStatus();
+  if (notesInput) {
+    notesInput.addEventListener("input", () => {
+      evaluatePowerReminder();
+    });
+  }
   const dateInput = document.getElementById("brew-date");
   if (dateInput && !dateInput.value) {
     dateInput.value = getTodayDateString();
@@ -1119,6 +1300,7 @@ export function refillLastBrewIfConfirmed() {
   if (scoreSelect) scoreSelect.value = last.score != null ? String(last.score) : "";
   if (notesInput) notesInput.value = last.notes || "";
   stopBrewTimer();
+  resetPowerReminderState();
   syncBrewScoreRatingUi();
   syncFormTimerDisplay();
 }

@@ -1,0 +1,31 @@
+{
+  "name": "clog",
+  "version": "1.0.0",
+  "description": "For more, please see\" http://clog.puce.vercel.app # CLOG",
+  "main": "sw.js",
+  "scripts": {
+    "build:web": "node ./scripts/build-web.mjs",
+    "cap:copy": "npm run build:web && npx cap copy",
+    "cap:sync": "npm run build:web && npx cap sync",
+    "cap:ios": "npm run build:web && npx cap open ios",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/surelyshirley631-dot/CLOG.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/surelyshirley631-dot/CLOG/issues"
+  },
+  "homepage": "https://github.com/surelyshirley631-dot/CLOG#readme",
+  "dependencies": {
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.4.1"
+  }
+}

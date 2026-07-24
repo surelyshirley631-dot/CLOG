@@ -285,6 +285,8 @@ function resetPanelTransitionStyles(panel) {
   panel.style.removeProperty("z-index");
   panel.style.removeProperty("transform");
   panel.style.removeProperty("opacity");
+  panel.style.removeProperty("box-shadow");
+  panel.style.removeProperty("filter");
 }
 
 function clearPanelTransitionShell() {
@@ -345,18 +347,24 @@ function applySwipePose(fromEl, toEl, direction, progress, width) {
   const clamped = Math.max(0, Math.min(1, progress));
   const outgoingSign = direction === "forward" ? -1 : 1;
   const incomingSign = -outgoingSign;
-  const eased = 1 - Math.pow(1 - clamped, 1.18);
-  const edgeResistance = 1 - Math.pow(clamped, 1.7) * 0.1284;
-  const outgoingX = outgoingSign * width * 0.12 * eased * edgeResistance;
-  const incomingX = incomingSign * width * 0.62 * (1 - eased * 0.98) * edgeResistance;
-  const outgoingScale = 1 - eased * 0.012;
-  const incomingScale = 0.992 + eased * 0.008;
-  const outgoingOpacity = 1 - eased * 0.24;
-  const incomingOpacity = 0.86 + eased * 0.14;
+  const eased = 1 - Math.pow(1 - clamped, 1.12);
+  const edgeResistance = 1 - Math.pow(clamped, 1.82) * 0.1374;
+  const outgoingX = outgoingSign * width * 0.17 * eased * edgeResistance;
+  const incomingX = incomingSign * width * 0.78 * (1 - eased * 0.985) * edgeResistance;
+  const outgoingScale = 1 - eased * 0.018;
+  const incomingScale = 0.986 + eased * 0.014;
+  const outgoingOpacity = 1 - eased * 0.3;
+  const incomingOpacity = 0.8 + eased * 0.2;
+  const outgoingShadow = `0 18px 40px rgba(62, 39, 35, ${0.16 + eased * 0.1})`;
+  const incomingShadow = `0 24px 54px rgba(62, 39, 35, ${0.18 + eased * 0.12})`;
   fromEl.style.transform = `translate3d(${outgoingX}px, 0, 0) scale(${outgoingScale})`;
   fromEl.style.opacity = String(outgoingOpacity);
+  fromEl.style.boxShadow = outgoingShadow;
+  fromEl.style.filter = `saturate(${1 - eased * 0.06})`;
   toEl.style.transform = `translate3d(${incomingX}px, 0, 0) scale(${incomingScale})`;
   toEl.style.opacity = String(incomingOpacity);
+  toEl.style.boxShadow = incomingShadow;
+  toEl.style.filter = `saturate(${0.96 + eased * 0.08})`;
 }
 
 function animatePanelChange(fromEl, toEl, direction) {
@@ -449,7 +457,8 @@ function initSwipeNavigation() {
     currentEl: null,
     targetEl: null,
     panelWidth: 0,
-    deltaX: 0
+    deltaX: 0,
+    framePending: false
   };
 
   const resetSwipeState = () => {
@@ -462,6 +471,14 @@ function initSwipeNavigation() {
     swipeState.targetEl = null;
     swipeState.panelWidth = 0;
     swipeState.deltaX = 0;
+    swipeState.framePending = false;
+  };
+
+  const renderSwipeFrame = () => {
+    swipeState.framePending = false;
+    if (!swipeState.dragging || !swipeState.currentEl || !swipeState.targetEl) return;
+    const progress = Math.min(Math.abs(swipeState.deltaX) / swipeState.panelWidth, 1);
+    applySwipePose(swipeState.currentEl, swipeState.targetEl, swipeState.direction, progress, swipeState.panelWidth);
   };
 
   const restoreCurrentPanel = () => {
@@ -519,8 +536,10 @@ function initSwipeNavigation() {
 
     event.preventDefault();
     swipeState.deltaX = deltaX;
-    const progress = Math.min(Math.abs(deltaX) / swipeState.panelWidth, 1);
-    applySwipePose(swipeState.currentEl, swipeState.targetEl, swipeState.direction, progress, swipeState.panelWidth);
+    if (!swipeState.framePending) {
+      swipeState.framePending = true;
+      window.requestAnimationFrame(renderSwipeFrame);
+    }
   }, { passive: false });
 
   main.addEventListener("touchend", event => {
@@ -533,7 +552,7 @@ function initSwipeNavigation() {
       const elapsed = Math.max(1, performance.now() - swipeState.startTime);
       const velocity = Math.abs(deltaX) / elapsed;
       const progress = Math.min(Math.abs(deltaX) / swipeState.panelWidth, 1);
-      const shouldCommit = progress > 0.18 || velocity > 0.48;
+      const shouldCommit = progress > 0.16 || velocity > 0.42;
       isPanelAnimating = true;
       const direction = swipeState.direction;
       const fromEl = swipeState.currentEl;
@@ -542,7 +561,10 @@ function initSwipeNavigation() {
       const fromFrames = shouldCommit
         ? [
             { transform: fromEl.style.transform || "translate3d(0px, 0, 0) scale(1)", opacity: Number(fromEl.style.opacity || "1") },
-            { transform: `translate3d(${direction === "forward" ? -Math.min(swipeState.panelWidth * 0.12, 64) : Math.min(swipeState.panelWidth * 0.12, 64)}px, 0, 0) scale(0.988)`, opacity: 0.76 }
+            {
+              transform: `translate3d(${direction === "forward" ? -Math.min(swipeState.panelWidth * 0.17, 92) : Math.min(swipeState.panelWidth * 0.17, 92)}px, 0, 0) scale(0.982)`,
+              opacity: 0.7
+            }
           ]
         : [
             { transform: fromEl.style.transform || "translate3d(0px, 0, 0) scale(1)", opacity: Number(fromEl.style.opacity || "1") },
@@ -556,12 +578,12 @@ function initSwipeNavigation() {
         : [
             { transform: toEl.style.transform || "translate3d(0px, 0, 0) scale(1)", opacity: Number(toEl.style.opacity || "1") },
             {
-              transform: `translate3d(${direction === "forward" ? swipeState.panelWidth * 0.62 : -swipeState.panelWidth * 0.62}px, 0, 0) scale(0.992)`,
-              opacity: 0.86
+              transform: `translate3d(${direction === "forward" ? swipeState.panelWidth * 0.78 : -swipeState.panelWidth * 0.78}px, 0, 0) scale(0.986)`,
+              opacity: 0.8
             }
           ];
-      const duration = shouldCommit ? 280 : 220;
-      const easing = shouldCommit ? "cubic-bezier(0.22, 0.9, 0.3, 1)" : "cubic-bezier(0.2, 0.86, 0.24, 1)";
+      const duration = shouldCommit ? 260 : 200;
+      const easing = shouldCommit ? "cubic-bezier(0.2, 0.92, 0.22, 1)" : "cubic-bezier(0.22, 0.82, 0.24, 1)";
       const outgoing = fromEl.animate(fromFrames, { duration, easing, fill: "forwards" });
       const incoming = toEl.animate(toFrames, { duration, easing, fill: "forwards" });
       Promise.allSettled([outgoing.finished, incoming.finished]).finally(() => {
@@ -632,7 +654,7 @@ function initZoomGuard() {
 
 function initNavigation() {
   const homeCards = Array.from(document.querySelectorAll(".home-card, .split-card"));
-  const title = document.getElementById("app-title");
+  const homeTrigger = document.getElementById("app-home-trigger");
   const dataBtn = document.getElementById("data-button");
   homeCards.forEach(card => {
     card.addEventListener("click", () => {
@@ -646,8 +668,9 @@ function initNavigation() {
       }
     });
   });
-  if (title) {
-    title.addEventListener("click", () => {
+  if (homeTrigger) {
+    homeTrigger.addEventListener("click", event => {
+      event.preventDefault();
       showPanel("home");
     });
   }

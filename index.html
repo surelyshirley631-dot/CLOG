@@ -24,10 +24,10 @@
 <div class="app-shell">
 <header class="app-header">
 <div class="app-header-top">
-<div>
+<button type="button" id="app-home-trigger" class="app-header-home" aria-label="Back to home">
 <h1 id="app-title">My Brew</h1>
 <p class="app-subtitle">Coffee log for brews, calendar, and beans</p>
-</div>
+</button>
 <div class="sync-status-pill" data-sync-status data-state="idle" aria-label="Saved only in this browser. Add Firebase settings to enable backup." title="Saved only in this browser. Add Firebase settings to enable backup.">
 <span class="sync-status-dot" aria-hidden="true"></span>
 <span data-sync-label>Local only</span>
@@ -262,6 +262,7 @@
 <button type="button" class="brew-bean-btn" data-score="10" aria-label="Rate 10 out of 10"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.8 2.2C8 2.2 5 5.8 5 10.2c0 5.6 3.8 10.6 6.8 11.6 3-1 7.2-6 7.2-11.6 0-4.4-3.1-8-7.2-8zM9.4 7.1c1.2 1.6 1.1 3.8-.4 5.4"/></svg></button>
 </div>
 <div class="brew-score-value" id="brew-score-value">Not Rated</div>
+<div id="brew-power-reminder-status" class="brew-reminder-status" aria-live="polite">Power-off reminder waits until timer, notes, and score are complete.</div>
 </div>
 </section>
 <input type="hidden" id="acidity-rating" value="">

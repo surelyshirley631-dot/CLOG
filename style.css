@@ -93,7 +93,8 @@ body {
 }
 
 .app-header {
-  padding: 18px 22px 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 22px 12px;
+  min-height: calc(env(safe-area-inset-top, 0px) + 94px);
   background: #3e2723;
   color: #fbe9e7;
   box-shadow: var(--shadow-soft);
@@ -109,14 +110,31 @@ body {
   gap: 14px;
 }
 
+.app-header-home {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+  display: block;
+  text-align: left;
+  min-width: 0;
+  flex: 1 1 auto;
+  cursor: pointer;
+}
+
 .app-header h1 {
   margin: 0;
   font-size: 2rem;
-  line-height: 1.1;
+  line-height: 1.2;
   font-family: "Times New Roman", Georgia, serif;
   font-weight: 700;
   letter-spacing: 0.04em;
-  cursor: pointer;
+  cursor: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app-subtitle {
@@ -124,6 +142,13 @@ body {
   font-size: 0.74rem;
   opacity: 0.9;
   letter-spacing: 0.03em;
+  line-height: 1.35;
+}
+
+.app-header-home:focus-visible {
+  outline: 2px solid rgba(255, 183, 77, 0.9);
+  outline-offset: 6px;
+  border-radius: 10px;
 }
 
 .sync-status-pill {
@@ -686,6 +711,77 @@ h3 {
   text-align: center;
 }
 
+.brew-reminder-status {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  text-align: center;
+  color: rgba(74, 47, 31, 0.78);
+}
+
+.brew-reminder-status[data-state="armed"] {
+  color: #8c4b00;
+  font-weight: 700;
+}
+
+.brew-reminder-status[data-state="done"] {
+  color: #2e7d32;
+  font-weight: 700;
+}
+
+.brew-power-reminder-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+}
+
+.brew-power-reminder-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(42, 28, 22, 0.34);
+  backdrop-filter: blur(5px);
+}
+
+.brew-power-reminder-dialog {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(92vw, 360px);
+  transform: translate(-50%, -50%);
+  border-radius: 24px;
+  padding: 22px 18px 18px;
+  background: linear-gradient(180deg, rgba(253, 251, 247, 0.98), rgba(247, 242, 233, 1));
+  box-shadow: 0 24px 54px rgba(62, 39, 35, 0.22);
+  border: 1px solid rgba(93, 64, 55, 0.12);
+  text-align: center;
+}
+
+.brew-power-reminder-kicker {
+  margin-bottom: 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a05a00;
+}
+
+.brew-power-reminder-dialog h3 {
+  margin: 0 0 8px;
+  font-size: 1.18rem;
+  color: #3e2723;
+}
+
+.brew-power-reminder-dialog p {
+  margin: 0 0 16px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(62, 39, 35, 0.82);
+}
+
+.brew-power-reminder-button {
+  min-width: 132px;
+}
+
 .brew-submit-wrap {
   justify-content: center;
 }
@@ -888,6 +984,8 @@ legend {
   display: none;
   width: 100%;
   backface-visibility: hidden;
+  transform-origin: center center;
+  contain: layout paint style;
 }
 
 .tab-panel.active {
@@ -897,12 +995,15 @@ legend {
 .tab-panel.is-transitioning {
   will-change: transform, opacity;
   pointer-events: none;
+  border-radius: 28px;
+  overflow: clip;
 }
 
 .app-main.is-panel-transitioning {
   overflow: hidden;
   isolation: isolate;
-  perspective: 1200px;
+  perspective: 1600px;
+  transform-style: preserve-3d;
 }
 
 .item-list {
@@ -2078,9 +2179,9 @@ legend {
   color: #3f3028;
   padding: 14px 16px;
   white-space: pre-wrap;
-  line-height: 1.65;
-  font-size: 1.04rem;
-  font-weight: 500;
+  line-height: 1.5;
+  font-size: 0.9rem;
+  font-weight: 400;
   min-height: 88px;
 }
 
@@ -2257,6 +2358,15 @@ legend {
   .app-header-top {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .app-header {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 28px);
+    min-height: calc(env(safe-area-inset-top, 0px) + 104px);
+  }
+
+  .app-header h1 {
+    font-size: 1.8rem;
   }
 
   .coffee-calendar-grid,
