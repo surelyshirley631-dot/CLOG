@@ -154,7 +154,6 @@ let brewTimerElapsedMs = 0;
 let brewTimerRunning = false;
 let brewTimerTickHandle = null;
 let brewTimerStartedAtMs = 0;
-let powerReminderArmed = false;
 let powerReminderTriggered = false;
 let powerReminderAudioContext = null;
 
@@ -174,7 +173,7 @@ function getPowerReminderModal() {
     <div class="brew-power-reminder-dialog" role="dialog" aria-modal="true" aria-labelledby="brew-power-reminder-title">
       <div class="brew-power-reminder-kicker">Machine Reminder</div>
       <h3 id="brew-power-reminder-title">Power off the machine</h3>
-      <p>Your timer is done and your notes plus score are complete. You can switch the machine off now.</p>
+      <p>Your brew has been saved. You can switch the machine off now.</p>
       <button type="button" class="primary-button brew-power-reminder-button" data-action="dismiss">Got it</button>
     </div>
   `;
@@ -203,14 +202,6 @@ function showPowerReminderModal() {
   }
 }
 
-function isPowerReminderFormComplete() {
-  const notesInput = document.getElementById("brew-notes");
-  const scoreInput = document.getElementById("brew-score");
-  const notesDone = Boolean(notesInput && notesInput.value.trim());
-  const scoreDone = Boolean(scoreInput && (Number(scoreInput.value) || 0) > 0);
-  return notesDone && scoreDone;
-}
-
 function updatePowerReminderStatus() {
   const statusEl = getPowerReminderStatusEl();
   if (!statusEl) return;
@@ -219,24 +210,11 @@ function updatePowerReminderStatus() {
     statusEl.textContent = "Power-off reminder sent. You can switch off the machine now.";
     return;
   }
-  if (brewTimerRunning) {
-    statusEl.dataset.state = "running";
-    statusEl.textContent = "Timer running. The power-off reminder will arm after you stop the timer.";
-    return;
-  }
-  if (powerReminderArmed) {
-    statusEl.dataset.state = "armed";
-    statusEl.textContent = isPowerReminderFormComplete()
-      ? "Reminder armed. Sending the power-off alert..."
-      : "Reminder armed. Finish notes and score to trigger the power-off alert.";
-    return;
-  }
   statusEl.dataset.state = "idle";
-  statusEl.textContent = "Power-off reminder waits until timer, notes, and score are complete.";
+  statusEl.textContent = "Power-off reminder sends after you tap Save brew.";
 }
 
 function resetPowerReminderState() {
-  powerReminderArmed = false;
   powerReminderTriggered = false;
   hidePowerReminderModal();
   updatePowerReminderStatus();
@@ -292,27 +270,10 @@ async function triggerNativePowerReminder() {
 function triggerPowerReminder() {
   if (powerReminderTriggered) return;
   powerReminderTriggered = true;
-  powerReminderArmed = false;
   updatePowerReminderStatus();
   showPowerReminderModal();
   playPowerReminderTone().catch(() => {});
   triggerNativePowerReminder().catch(() => {});
-}
-
-function evaluatePowerReminder() {
-  if (brewTimerRunning || !powerReminderArmed || powerReminderTriggered) {
-    updatePowerReminderStatus();
-    return;
-  }
-  if (brewTimerElapsedMs <= 0) {
-    updatePowerReminderStatus();
-    return;
-  }
-  if (!isPowerReminderFormComplete()) {
-    updatePowerReminderStatus();
-    return;
-  }
-  triggerPowerReminder();
 }
 
 function getCurrentTimerElapsedMs() {
@@ -341,7 +302,6 @@ function setTimerRunningState() {
 }
 
 function stopBrewTimer() {
-  const wasRunning = brewTimerRunning;
   if (brewTimerRunning) {
     brewTimerElapsedMs = getCurrentTimerElapsedMs();
   }
@@ -351,17 +311,12 @@ function stopBrewTimer() {
   }
   brewTimerRunning = false;
   setTimerRunningState();
-  if (wasRunning && brewTimerElapsedMs > 0) {
-    powerReminderArmed = true;
-    powerReminderTriggered = false;
-  }
-  evaluatePowerReminder();
+  updatePowerReminderStatus();
 }
 
 function startBrewTimer() {
   if (brewTimerRunning) return;
   hidePowerReminderModal();
-  powerReminderArmed = false;
   powerReminderTriggered = false;
   brewTimerRunning = true;
   brewTimerStartedAtMs = performance.now();
@@ -771,7 +726,6 @@ function syncBrewScoreRatingUi() {
   if (valueLabel) {
     valueLabel.textContent = score > 0 ? `${score}/10` : "Not Rated";
   }
-  evaluatePowerReminder();
 }
 
 function initBrewScoreRatingUi() {
@@ -1017,7 +971,6 @@ export function bindBrewsUi() {
   const grinderSelect = document.getElementById("brew-grinder");
   const tipsCard = document.getElementById("brew-tips-card");
   const tipsList = document.getElementById("brew-tips-list");
-  const notesInput = document.getElementById("brew-notes");
   if (!form || !list || !clearBtn || !beanSelect || !machineSelect || !grinderSelect || !tipsCard || !tipsList) return;
 
   let editingId = null;
@@ -1030,11 +983,6 @@ export function bindBrewsUi() {
   stopBrewTimer();
   syncFormTimerDisplay();
   updatePowerReminderStatus();
-  if (notesInput) {
-    notesInput.addEventListener("input", () => {
-      evaluatePowerReminder();
-    });
-  }
   const dateInput = document.getElementById("brew-date");
   if (dateInput && !dateInput.value) {
     dateInput.value = getTodayDateString();
@@ -1135,6 +1083,7 @@ export function bindBrewsUi() {
     renderGrinderOptions(grinderSelect);
     renderBrews(list, brews);
     document.dispatchEvent(new CustomEvent("brews-updated", { detail: { brews } }));
+    triggerPowerReminder();
     syncBrewToCloud(brew).catch(error => {
       console.error("Cloud backup failed", error);
     });
