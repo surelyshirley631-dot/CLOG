@@ -92,7 +92,7 @@ function drawImageToCanvas(image, maxEdge, filter = "none") {
   return canvas;
 }
 
-async function toOptimizedPhotoDataUrl(file) {
+async function toOptimizedPhotoDataUrls(file) {
   const original = await readFileAsDataUrl(file);
   const image = await loadImage(original);
   const attempts = [
@@ -100,21 +100,30 @@ async function toOptimizedPhotoDataUrl(file) {
     { maxEdge: 1080, quality: 0.74 },
     { maxEdge: 900, quality: 0.68 },
     { maxEdge: 768, quality: 0.62 },
-    { maxEdge: 640, quality: 0.56 }
+    { maxEdge: 640, quality: 0.56 },
+    { maxEdge: 520, quality: 0.48 },
+    { maxEdge: 420, quality: 0.4 }
   ];
-  let best = original;
+  const candidates = [];
+  const seen = new Set();
+  const pushCandidate = value => {
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    candidates.push(value);
+  };
   for (const attempt of attempts) {
     const canvas = drawImageToCanvas(image, attempt.maxEdge);
     if (!canvas) {
-      return original;
+      pushCandidate(original);
+      return candidates;
     }
     const candidate = canvas.toDataURL("image/jpeg", attempt.quality);
-    best = candidate;
-    if (candidate.length <= 420000) {
-      return candidate;
-    }
+    pushCandidate(candidate);
   }
-  return best;
+  if (!candidates.length) {
+    pushCandidate(original);
+  }
+  return candidates;
 }
 
 function normalizeOcrLine(line) {
@@ -238,12 +247,15 @@ async function recognizePackageText(file) {
   return result && result.data && typeof result.data.text === "string" ? result.data.text : "";
 }
 
-function trySaveBeans(beans) {
+function trySaveBeans(beans, options = {}) {
+  const { silent = false } = options;
   try {
     saveBeans(beans);
     return true;
   } catch {
-    window.alert("保存失败：图片过大，请换一张更小的图片后重试。");
+    if (!silent) {
+      window.alert("保存失败：已自动尝试压缩图片，但当前浏览器可用空间还是不够。这次不会清空你表单里的豆子描述，请换一张更小的图片后重试。");
+    }
     return false;
   }
 }
@@ -336,46 +348,62 @@ export function bindBeansUi() {
     const notes = notesInput ? notesInput.value.trim() : "";
 
     const file = photoInput && photoInput.files ? photoInput.files[0] : null;
-    let photoDataUrl = "";
-    if (file) {
-      try {
-        photoDataUrl = await toOptimizedPhotoDataUrl(file);
-      } catch {
-        window.alert("图片读取失败，请重新选择图片。");
-        return;
+    const buildNextBeans = photoDataUrl => {
+      if (editingId) {
+        return beans.map(bean => {
+          if (bean.id !== editingId) return bean;
+          return {
+            ...bean,
+            name,
+            beanType,
+            roastType,
+            openDate,
+            notes,
+            photoDataUrl: photoDataUrl || bean.photoDataUrl || ""
+          };
+        });
       }
-    }
-
-    if (editingId) {
-      const idx = beans.findIndex(b => b.id === editingId);
-      if (idx !== -1) {
-        const existing = beans[idx];
-        beans[idx] = {
-          ...existing,
+      return [
+        {
+          id: generateId(),
           name,
           beanType,
           roastType,
           openDate,
           notes,
-          photoDataUrl: photoDataUrl || existing.photoDataUrl || ""
-        };
+          photoDataUrl: photoDataUrl || ""
+        },
+        ...beans
+      ];
+    };
+
+    let nextBeans = null;
+    if (file) {
+      try {
+        const photoCandidates = await toOptimizedPhotoDataUrls(file);
+        for (const candidate of photoCandidates) {
+          const attemptedBeans = buildNextBeans(candidate);
+          if (!trySaveBeans(attemptedBeans, { silent: true })) continue;
+          nextBeans = attemptedBeans;
+          break;
+        }
+      } catch {
+        window.alert("图片读取失败，请重新选择图片。");
+        return;
+      }
+      if (!nextBeans) {
+        window.alert("保存失败：已自动尝试压缩图片，但当前浏览器可用空间还是不够。这次不会清空你表单里的豆子描述，请换一张更小的图片后重试。");
+        setOcrStatus("图片太大，这次没有保存成功；你当前填写的豆子描述还保留在表单里。", "is-warning");
+        return;
       }
     } else {
-      const bean = {
-        id: generateId(),
-        name,
-        beanType,
-        roastType,
-        openDate,
-        notes,
-        photoDataUrl: photoDataUrl || ""
-      };
-      beans.unshift(bean);
+      nextBeans = buildNextBeans("");
+      if (!trySaveBeans(nextBeans)) {
+        setOcrStatus("这次没有保存成功；你当前填写的豆子描述还保留在表单里。", "is-warning");
+        return;
+      }
     }
 
-    if (!trySaveBeans(beans)) {
-      return;
-    }
     editingId = null;
     form.reset();
     if (photoInput) {
@@ -385,9 +413,9 @@ export function bindBeansUi() {
       ocrInput.value = "";
     }
     setOcrStatus("");
-    renderBeans(list, beans);
-    document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans } }));
-    const savedBean = savedBeanId ? beans.find(bean => bean.id === savedBeanId) : beans[0];
+    renderBeans(list, nextBeans);
+    document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans: nextBeans } }));
+    const savedBean = savedBeanId ? nextBeans.find(bean => bean.id === savedBeanId) : nextBeans[0];
     if (savedBean) {
       syncBeanToCloud(savedBean).catch(error => {
         console.error("Bean cloud backup failed", error);

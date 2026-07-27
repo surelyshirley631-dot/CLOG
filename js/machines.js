@@ -14,7 +14,7 @@ function loadImageFromDataUrl(dataUrl) {
   });
 }
 
-async function optimizeMachinePhoto(file) {
+async function optimizeMachinePhotoCandidates(file) {
   if (!file) return "";
   const dataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -30,9 +30,17 @@ async function optimizeMachinePhoto(file) {
       { maxEdge: 1080, quality: 0.72 },
       { maxEdge: 900, quality: 0.66 },
       { maxEdge: 768, quality: 0.6 },
-      { maxEdge: 640, quality: 0.54 }
+      { maxEdge: 640, quality: 0.54 },
+      { maxEdge: 520, quality: 0.46 },
+      { maxEdge: 420, quality: 0.38 }
     ];
-    let best = dataUrl;
+    const candidates = [];
+    const seen = new Set();
+    const pushCandidate = value => {
+      if (!value || seen.has(value)) return;
+      seen.add(value);
+      candidates.push(value);
+    };
     for (const attempt of attempts) {
       const ratio = Math.min(1, attempt.maxEdge / Math.max(image.width, image.height));
       const width = Math.max(1, Math.round(image.width * ratio));
@@ -41,26 +49,32 @@ async function optimizeMachinePhoto(file) {
       canvas.width = width;
       canvas.height = height;
       const context = canvas.getContext("2d");
-      if (!context) return dataUrl;
+      if (!context) {
+        pushCandidate(dataUrl);
+        return candidates;
+      }
       context.drawImage(image, 0, 0, width, height);
       const candidate = canvas.toDataURL("image/jpeg", attempt.quality);
-      best = candidate;
-      if (candidate.length <= 320000) {
-        return candidate;
-      }
+      pushCandidate(candidate);
     }
-    return best;
+    if (!candidates.length) {
+      pushCandidate(dataUrl);
+    }
+    return candidates;
   } catch {
-    return dataUrl;
+    return [dataUrl];
   }
 }
 
-function trySaveMachines(machines) {
+function trySaveMachines(machines, options = {}) {
+  const { silent = false } = options;
   try {
     saveMachines(machines);
     return true;
   } catch {
-    window.alert("Upload failed: the photo is too large for local storage. Try a smaller image.");
+    if (!silent) {
+      window.alert("保存失败：已自动尝试压缩图片，但当前浏览器可用空间还是不够。这次不会清空你已填写的机器信息，请换一张更小的图片后重试。");
+    }
     return false;
   }
 }
@@ -148,46 +162,52 @@ export function bindMachinesUi() {
     const notes = notesInput ? notesInput.value.trim() : "";
     if (!name) return;
     const machines = loadMachines();
-    const savedMachineId = editingId;
     const file = photoInput && photoInput.files ? photoInput.files[0] : null;
 
-    const finalize = photoDataUrl => {
+    const buildNextMachines = photoDataUrl => {
       if (editingId) {
-        const idx = machines.findIndex(m => m.id === editingId);
-        if (idx !== -1) {
-          const existing = machines[idx];
-          machines[idx] = {
-            ...existing,
+        return machines.map(machine => {
+          if (machine.id !== editingId) return machine;
+          return {
+            ...machine,
             name,
             notes,
-            photoDataUrl: photoDataUrl || existing.photoDataUrl || ""
+            photoDataUrl: photoDataUrl || machine.photoDataUrl || ""
           };
-        }
-      } else {
-        const id = generateId();
-        machines.push({
+        });
+      }
+      const id = generateId();
+      return [
+        ...machines,
+        {
           id,
           name,
           notes,
           photoDataUrl: photoDataUrl || ""
-        });
-      }
-      if (!trySaveMachines(machines)) return;
+        }
+      ];
+    };
+
+    const finalize = nextMachines => {
+      if (!nextMachines) return;
+      const activeEditingId = editingId;
       editingId = null;
       nameInput.value = "";
       if (notesInput) {
         notesInput.value = "";
+      } else {
+        nameInput.value = "";
       }
       if (photoInput) {
         photoInput.value = "";
       }
-      renderMachineList(list, machines);
+      renderMachineList(list, nextMachines);
       const select = document.getElementById("brew-machine");
       if (select) {
         renderMachineOptions(select);
       }
-      document.dispatchEvent(new CustomEvent("machines-updated", { detail: { machines } }));
-      const savedMachine = savedMachineId ? machines.find(machine => machine.id === savedMachineId) : machines[machines.length - 1];
+      document.dispatchEvent(new CustomEvent("machines-updated", { detail: { machines: nextMachines } }));
+      const savedMachine = activeEditingId ? nextMachines.find(machine => machine.id === activeEditingId) : nextMachines[nextMachines.length - 1];
       if (savedMachine) {
         syncMachineToCloud(savedMachine).catch(error => {
           console.error("Machine cloud backup failed", error);
@@ -197,13 +217,26 @@ export function bindMachinesUi() {
 
     if (file) {
       try {
-        const photoDataUrl = await optimizeMachinePhoto(file);
-        finalize(photoDataUrl);
+        const photoCandidates = await optimizeMachinePhotoCandidates(file);
+        let nextMachines = null;
+        for (const candidate of photoCandidates) {
+          const attemptedMachines = buildNextMachines(candidate);
+          if (!trySaveMachines(attemptedMachines, { silent: true })) continue;
+          nextMachines = attemptedMachines;
+          break;
+        }
+        if (!nextMachines) {
+          window.alert("保存失败：已自动尝试压缩图片，但当前浏览器可用空间还是不够。这次不会清空你已填写的机器信息，请换一张更小的图片后重试。");
+          return;
+        }
+        finalize(nextMachines);
       } catch {
         window.alert("Machine photo could not be processed. Please try another image.");
       }
     } else {
-      finalize("");
+      const nextMachines = buildNextMachines("");
+      if (!trySaveMachines(nextMachines)) return;
+      finalize(nextMachines);
     }
   });
 
