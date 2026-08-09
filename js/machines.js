@@ -1,5 +1,5 @@
 import { loadMachines, saveMachines } from "./storage.js";
-import { syncMachineToCloud } from "./sync.js";
+import { syncMachineToCloud, uploadMachinePhotoToCloud } from "./sync.js";
 
 function generateId() {
   return `machine_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -162,9 +162,11 @@ export function bindMachinesUi() {
     const notes = notesInput ? notesInput.value.trim() : "";
     if (!name) return;
     const machines = loadMachines();
+    const targetMachineId = editingId || generateId();
     const file = photoInput && photoInput.files ? photoInput.files[0] : null;
 
-    const buildNextMachines = photoDataUrl => {
+    const buildNextMachines = media => {
+      const nextMedia = media && typeof media === "object" ? media : {};
       if (editingId) {
         return machines.map(machine => {
           if (machine.id !== editingId) return machine;
@@ -172,18 +174,21 @@ export function bindMachinesUi() {
             ...machine,
             name,
             notes,
-            photoDataUrl: photoDataUrl || machine.photoDataUrl || ""
+            photoDataUrl: nextMedia.photoDataUrl || machine.photoDataUrl || "",
+            photoUrl: nextMedia.photoUrl || machine.photoUrl || "",
+            photoStoragePath: nextMedia.photoStoragePath || machine.photoStoragePath || ""
           };
         });
       }
-      const id = generateId();
       return [
         ...machines,
         {
-          id,
+          id: targetMachineId,
           name,
           notes,
-          photoDataUrl: photoDataUrl || ""
+          photoDataUrl: nextMedia.photoDataUrl || "",
+          photoUrl: nextMedia.photoUrl || "",
+          photoStoragePath: nextMedia.photoStoragePath || ""
         }
       ];
     };
@@ -219,11 +224,30 @@ export function bindMachinesUi() {
       try {
         const photoCandidates = await optimizeMachinePhotoCandidates(file);
         let nextMachines = null;
-        for (const candidate of photoCandidates) {
-          const attemptedMachines = buildNextMachines(candidate);
-          if (!trySaveMachines(attemptedMachines, { silent: true })) continue;
-          nextMachines = attemptedMachines;
-          break;
+        let cloudMedia = null;
+        if (photoCandidates[0]) {
+          try {
+            const uploadResult = await uploadMachinePhotoToCloud(targetMachineId, photoCandidates[0]);
+            if (!uploadResult.skipped) {
+              cloudMedia = uploadResult;
+            }
+          } catch (error) {
+            console.warn("Machine photo cloud upload failed, falling back to local save.", error);
+          }
+        }
+        if (cloudMedia) {
+          nextMachines = buildNextMachines(cloudMedia);
+          if (!trySaveMachines(nextMachines)) {
+            window.alert("图片已上传云端，但本地保存没有完成。请重新保存一次。");
+            return;
+          }
+        } else {
+          for (const candidate of photoCandidates) {
+            const attemptedMachines = buildNextMachines({ photoDataUrl: candidate, photoUrl: "", photoStoragePath: "" });
+            if (!trySaveMachines(attemptedMachines, { silent: true })) continue;
+            nextMachines = attemptedMachines;
+            break;
+          }
         }
         if (!nextMachines) {
           window.alert("保存失败：已自动尝试压缩图片，但当前浏览器可用空间还是不够。这次不会清空你已填写的机器信息，请换一张更小的图片后重试。");
@@ -234,7 +258,7 @@ export function bindMachinesUi() {
         window.alert("Machine photo could not be processed. Please try another image.");
       }
     } else {
-      const nextMachines = buildNextMachines("");
+      const nextMachines = buildNextMachines({});
       if (!trySaveMachines(nextMachines)) return;
       finalize(nextMachines);
     }
@@ -243,7 +267,8 @@ export function bindMachinesUi() {
   list.addEventListener("click", event => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (!target.classList.contains("machine-edit-button")) return;
+    const editBtn = target.closest(".machine-edit-button");
+    if (!editBtn) return;
     const li = target.closest("li");
     if (!li || !li.dataset.machineId) return;
     const machines = loadMachines();

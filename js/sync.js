@@ -197,6 +197,26 @@ async function uploadMediaDataUrl(services, objectPath, dataUrl) {
   return getDownloadURL(storageRef);
 }
 
+async function uploadBeanPhotoInternal(services, beanId, dataUrl) {
+  const objectPath = `beans/${beanId}.jpg`;
+  const photoUrl = await uploadMediaDataUrl(services, objectPath, dataUrl);
+  return {
+    photoDataUrl: photoUrl,
+    photoUrl,
+    photoStoragePath: objectPath
+  };
+}
+
+async function uploadMachinePhotoInternal(services, machineId, dataUrl) {
+  const objectPath = `machines/${machineId}.jpg`;
+  const photoUrl = await uploadMediaDataUrl(services, objectPath, dataUrl);
+  return {
+    photoDataUrl: photoUrl,
+    photoUrl,
+    photoStoragePath: objectPath
+  };
+}
+
 async function prepareBeanForCloud(services, bean) {
   if (!bean || !bean.id) return bean;
   if (!isImageDataUrl(bean.photoDataUrl)) {
@@ -208,13 +228,9 @@ async function prepareBeanForCloud(services, bean) {
       photoStoragePath: bean.photoStoragePath || ""
     };
   }
-  const objectPath = `beans/${bean.id}.jpg`;
-  const photoUrl = await uploadMediaDataUrl(services, objectPath, bean.photoDataUrl);
   return {
     ...bean,
-    photoDataUrl: photoUrl,
-    photoUrl,
-    photoStoragePath: objectPath
+    ...(await uploadBeanPhotoInternal(services, bean.id, bean.photoDataUrl))
   };
 }
 
@@ -229,13 +245,9 @@ async function prepareMachineForCloud(services, machine) {
       photoStoragePath: machine.photoStoragePath || ""
     };
   }
-  const objectPath = `machines/${machine.id}.jpg`;
-  const photoUrl = await uploadMediaDataUrl(services, objectPath, machine.photoDataUrl);
   return {
     ...machine,
-    photoDataUrl: photoUrl,
-    photoUrl,
-    photoStoragePath: objectPath
+    ...(await uploadMachinePhotoInternal(services, machine.id, machine.photoDataUrl))
   };
 }
 
@@ -435,4 +447,32 @@ export function syncMachineToCloud(machine) {
       throw new Error(message);
     }
   });
+}
+
+export async function uploadBeanPhotoToCloud(beanId, dataUrl) {
+  const config = getConfig();
+  if (!isConfigured(config) || !beanId || !isImageDataUrl(dataUrl)) {
+    return { skipped: true, photoDataUrl: dataUrl || "", photoUrl: "", photoStoragePath: "" };
+  }
+  try {
+    const services = getFirebaseServices(config);
+    return { skipped: false, ...(await uploadBeanPhotoInternal(services, beanId, dataUrl)) };
+  } catch (error) {
+    const message = saveSyncError(config, error instanceof Error ? error.message : "");
+    throw new Error(message);
+  }
+}
+
+export async function uploadMachinePhotoToCloud(machineId, dataUrl) {
+  const config = getConfig();
+  if (!isConfigured(config) || !machineId || !isImageDataUrl(dataUrl)) {
+    return { skipped: true, photoDataUrl: dataUrl || "", photoUrl: "", photoStoragePath: "" };
+  }
+  try {
+    const services = getFirebaseServices(config);
+    return { skipped: false, ...(await uploadMachinePhotoInternal(services, machineId, dataUrl)) };
+  } catch (error) {
+    const message = saveSyncError(config, error instanceof Error ? error.message : "");
+    throw new Error(message);
+  }
 }

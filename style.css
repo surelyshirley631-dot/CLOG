@@ -1869,6 +1869,9 @@ legend {
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
+  min-width: 78px;
+  padding-top: 2px;
 }
 
 .item-side span:not(.brew-side-score) {

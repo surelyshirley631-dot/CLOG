@@ -1,5 +1,5 @@
 import { loadBeans, saveBeans } from "./storage.js";
-import { syncBeanToCloud } from "./sync.js";
+import { syncBeanToCloud, uploadBeanPhotoToCloud } from "./sync.js";
 
 function generateId() {
   return `bean_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -341,14 +341,15 @@ export function bindBeansUi() {
     const name = nameInput.value.trim();
     if (!name) return;
     const beans = loadBeans();
-    const savedBeanId = editingId;
+    const targetBeanId = editingId || generateId();
     const beanType = typeSelect ? typeSelect.value : "";
     const roastType = roastTypeSelect ? roastTypeSelect.value : "";
     const openDate = openDateInput ? openDateInput.value : "";
     const notes = notesInput ? notesInput.value.trim() : "";
 
     const file = photoInput && photoInput.files ? photoInput.files[0] : null;
-    const buildNextBeans = photoDataUrl => {
+    const buildNextBeans = media => {
+      const nextMedia = media && typeof media === "object" ? media : {};
       if (editingId) {
         return beans.map(bean => {
           if (bean.id !== editingId) return bean;
@@ -359,19 +360,23 @@ export function bindBeansUi() {
             roastType,
             openDate,
             notes,
-            photoDataUrl: photoDataUrl || bean.photoDataUrl || ""
+            photoDataUrl: nextMedia.photoDataUrl || bean.photoDataUrl || "",
+            photoUrl: nextMedia.photoUrl || bean.photoUrl || "",
+            photoStoragePath: nextMedia.photoStoragePath || bean.photoStoragePath || ""
           };
         });
       }
       return [
         {
-          id: generateId(),
+          id: targetBeanId,
           name,
           beanType,
           roastType,
           openDate,
           notes,
-          photoDataUrl: photoDataUrl || ""
+          photoDataUrl: nextMedia.photoDataUrl || "",
+          photoUrl: nextMedia.photoUrl || "",
+          photoStoragePath: nextMedia.photoStoragePath || ""
         },
         ...beans
       ];
@@ -381,11 +386,30 @@ export function bindBeansUi() {
     if (file) {
       try {
         const photoCandidates = await toOptimizedPhotoDataUrls(file);
-        for (const candidate of photoCandidates) {
-          const attemptedBeans = buildNextBeans(candidate);
-          if (!trySaveBeans(attemptedBeans, { silent: true })) continue;
-          nextBeans = attemptedBeans;
-          break;
+        let cloudMedia = null;
+        if (photoCandidates[0]) {
+          try {
+            const uploadResult = await uploadBeanPhotoToCloud(targetBeanId, photoCandidates[0]);
+            if (!uploadResult.skipped) {
+              cloudMedia = uploadResult;
+            }
+          } catch (error) {
+            console.warn("Bean photo cloud upload failed, falling back to local save.", error);
+          }
+        }
+        if (cloudMedia) {
+          nextBeans = buildNextBeans(cloudMedia);
+          if (!trySaveBeans(nextBeans)) {
+            setOcrStatus("图片已上传云端，但本地保存没有完成。请重新保存一次。", "is-warning");
+            return;
+          }
+        } else {
+          for (const candidate of photoCandidates) {
+            const attemptedBeans = buildNextBeans({ photoDataUrl: candidate, photoUrl: "", photoStoragePath: "" });
+            if (!trySaveBeans(attemptedBeans, { silent: true })) continue;
+            nextBeans = attemptedBeans;
+            break;
+          }
         }
       } catch {
         window.alert("图片读取失败，请重新选择图片。");
@@ -397,7 +421,7 @@ export function bindBeansUi() {
         return;
       }
     } else {
-      nextBeans = buildNextBeans("");
+      nextBeans = buildNextBeans({});
       if (!trySaveBeans(nextBeans)) {
         setOcrStatus("这次没有保存成功；你当前填写的豆子描述还保留在表单里。", "is-warning");
         return;
@@ -415,7 +439,7 @@ export function bindBeansUi() {
     setOcrStatus("");
     renderBeans(list, nextBeans);
     document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans: nextBeans } }));
-    const savedBean = savedBeanId ? nextBeans.find(bean => bean.id === savedBeanId) : nextBeans[0];
+    const savedBean = nextBeans.find(bean => bean.id === targetBeanId);
     if (savedBean) {
       syncBeanToCloud(savedBean).catch(error => {
         console.error("Bean cloud backup failed", error);
@@ -434,7 +458,8 @@ export function bindBeansUi() {
   list.addEventListener("click", event => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (!target.classList.contains("bean-edit-button")) return;
+    const editBtn = target.closest(".bean-edit-button");
+    if (!editBtn) return;
     const li = target.closest("li");
     if (!li || !li.dataset.beanId) return;
     const beans = loadBeans();
