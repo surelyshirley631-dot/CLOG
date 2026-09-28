@@ -200,8 +200,6 @@ export function bindMachinesUi() {
       nameInput.value = "";
       if (notesInput) {
         notesInput.value = "";
-      } else {
-        nameInput.value = "";
       }
       if (photoInput) {
         photoInput.value = "";

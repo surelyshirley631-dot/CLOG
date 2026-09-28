@@ -127,11 +127,18 @@ function normalizeCafes(cafes) {
 function normalizeGrinders(grinders) {
   return asArray(grinders).map(grinder => {
     const source = grinder && typeof grinder === "object" ? grinder : {};
+    const isRemotePhotoUrl = typeof source.photoUrl === "string" && /^https?:\/\//i.test(source.photoUrl);
+    const isRemotePhotoDataUrl =
+      !isRemotePhotoUrl && typeof source.photoDataUrl === "string" && /^https?:\/\//i.test(source.photoDataUrl);
+    const remotePhotoUrl = isRemotePhotoUrl ? source.photoUrl : isRemotePhotoDataUrl ? source.photoDataUrl : "";
     return {
       ...source,
       id: source.id ? String(source.id) : `grinder_${Date.now()}_${Math.random().toString(16).slice(2)}`,
       name: source.name ? String(source.name) : "",
-      photoDataUrl: source.photoDataUrl ? String(source.photoDataUrl) : ""
+      notes: source.notes ? String(source.notes) : "",
+      photoDataUrl: remotePhotoUrl ? remotePhotoUrl : source.photoDataUrl ? String(source.photoDataUrl) : "",
+      photoUrl: remotePhotoUrl ? remotePhotoUrl : source.photoUrl ? String(source.photoUrl) : "",
+      photoStoragePath: source.photoStoragePath ? String(source.photoStoragePath) : ""
     };
   });
 }
@@ -407,11 +414,11 @@ export function saveBeans(beans) {
 }
 
 export function loadGrinders() {
-  return safeParse(localStorage.getItem(STORAGE_KEYS.grinders), []);
+  return normalizeGrinders(safeParse(localStorage.getItem(STORAGE_KEYS.grinders), []));
 }
 
 export function saveGrinders(grinders) {
-  localStorage.setItem(STORAGE_KEYS.grinders, JSON.stringify(grinders));
+  localStorage.setItem(STORAGE_KEYS.grinders, JSON.stringify(normalizeGrinders(grinders)));
 }
 
 export function loadMachines() {

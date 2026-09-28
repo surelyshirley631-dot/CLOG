@@ -278,6 +278,22 @@ function isSwipePanel(panelId) {
 }
 
 function resetPanelTransitionStyles(panel) {
+  if (!panel) return;
+  if (!panel.classList.contains("is-transitioning")) {
+    const hasInlineOverlayStyles =
+      panel.style.position ||
+      panel.style.inset ||
+      panel.style.zIndex ||
+      panel.style.transform ||
+      panel.style.opacity ||
+      panel.style.boxShadow ||
+      panel.style.filter;
+    if (!hasInlineOverlayStyles) {
+      panel.classList.remove("is-transitioning");
+      panel.style.removeProperty("width");
+      return;
+    }
+  }
   panel.classList.remove("is-transitioning");
   panel.style.removeProperty("position");
   panel.style.removeProperty("inset");
@@ -292,19 +308,45 @@ function resetPanelTransitionStyles(panel) {
 function clearPanelTransitionShell() {
   const main = document.querySelector(".app-main");
   if (!main) return;
+  if (!main.classList.contains("is-panel-transitioning")) {
+    if (main.style.minHeight) {
+      main.style.removeProperty("min-height");
+    }
+    return;
+  }
   main.classList.remove("is-panel-transitioning");
   main.style.removeProperty("min-height");
 }
 
-function setPanelVisibility(targetId) {
-  PANEL_IDS.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const isActive = id === targetId;
-    el.classList.toggle("active", isActive);
-    el.style.display = isActive ? "block" : "none";
-    resetPanelTransitionStyles(el);
-  });
+function setPanelVisibility(targetId, previousId) {
+  const activeEl = document.getElementById(targetId);
+  if (!activeEl) return;
+  const prevEl = previousId ? document.getElementById(previousId) : null;
+  if (prevEl && prevEl !== activeEl) {
+    prevEl.classList.remove("active");
+    prevEl.style.display = "none";
+    resetPanelTransitionStyles(prevEl);
+  }
+  activeEl.classList.add("active");
+  activeEl.style.display = "block";
+  resetPanelTransitionStyles(activeEl);
+}
+
+function syncCurrentPanelState(targetId) {
+  currentPanelId = targetId;
+  window.__currentPanelId = targetId;
+  document.body.setAttribute("data-current-panel", targetId);
+}
+
+function notifyPanelChange(targetId, previousId) {
+  document.dispatchEvent(
+    new CustomEvent("panel-changed", {
+      detail: { targetId, previousId: previousId || "" }
+    })
+  );
+  if (targetId === "home") {
+    document.dispatchEvent(new CustomEvent("home-panel-will-show", { detail: { previousId: previousId || "" } }));
+  }
 }
 
 function finalizePanelChange(targetId) {
@@ -315,7 +357,7 @@ function finalizePanelChange(targetId) {
   } else {
     window.scrollTo(0, 0);
   }
-  currentPanelId = targetId;
+  syncCurrentPanelState(targetId);
   setHeaderFor(targetId);
   const dataBtn = document.getElementById("data-button");
   if (dataBtn) {
@@ -399,29 +441,32 @@ function animatePanelChange(fromEl, toEl, direction) {
   );
 
   return Promise.allSettled([outgoing.finished, incoming.finished]).then(() => {
-    setPanelVisibility(toEl.id);
+    setPanelVisibility(toEl.id, fromEl.id);
   });
 }
 
 function showPanel(targetId, options = {}) {
-  if (!targetId || isPanelAnimating && targetId !== currentPanelId) return;
+  if (!targetId || (isPanelAnimating && targetId !== currentPanelId)) return;
   const targetEl = document.getElementById(targetId);
   if (!targetEl) return;
+  const previousId = currentPanelId;
   if (targetId === currentPanelId) {
-    setPanelVisibility(targetId);
+    setPanelVisibility(targetId, previousId);
+    notifyPanelChange(targetId, previousId);
     finalizePanelChange(targetId);
     return;
   }
-  const currentEl = document.getElementById(currentPanelId);
+  const currentEl = document.getElementById(previousId);
   const targetIndex = getPanelIndex(targetId);
-  const currentIndex = getPanelIndex(currentPanelId);
+  const currentIndex = getPanelIndex(previousId);
   const inferredDirection =
     targetIndex !== -1 && currentIndex !== -1 && targetIndex > currentIndex ? "forward" : "backward";
   const direction = options.direction || inferredDirection;
   const shouldAnimate = options.animate !== false;
 
+  notifyPanelChange(targetId, previousId);
   if (!shouldAnimate || !currentEl) {
-    setPanelVisibility(targetId);
+    setPanelVisibility(targetId, previousId);
     finalizePanelChange(targetId);
     return;
   }
@@ -429,7 +474,7 @@ function showPanel(targetId, options = {}) {
   isPanelAnimating = true;
   animatePanelChange(currentEl, targetEl, direction)
     .catch(() => {
-      setPanelVisibility(targetId);
+      setPanelVisibility(targetId, previousId);
     })
     .finally(() => {
       isPanelAnimating = false;
@@ -482,7 +527,10 @@ function initSwipeNavigation() {
   };
 
   const restoreCurrentPanel = () => {
-    if (swipeState.currentEl) {
+    if (swipeState.currentEl && swipeState.targetEl) {
+      setPanelVisibility(currentPanelId, swipeState.targetId || currentPanelId);
+      clearPanelTransitionShell();
+    } else if (swipeState.currentEl) {
       setPanelVisibility(currentPanelId);
       clearPanelTransitionShell();
     }
@@ -588,10 +636,11 @@ function initSwipeNavigation() {
       const incoming = toEl.animate(toFrames, { duration, easing, fill: "forwards" });
       Promise.allSettled([outgoing.finished, incoming.finished]).finally(() => {
         if (shouldCommit) {
-          setPanelVisibility(targetId);
+          setPanelVisibility(targetId, currentPanelId);
+          notifyPanelChange(targetId, currentPanelId);
           finalizePanelChange(targetId);
         } else {
-          setPanelVisibility(currentPanelId);
+          setPanelVisibility(currentPanelId, targetId);
           clearPanelTransitionShell();
         }
         isPanelAnimating = false;
@@ -1003,6 +1052,7 @@ function initSettings() {
 }
 
 function initApp() {
+  syncCurrentPanelState("home");
   migrateIfNeeded();
   initZoomGuard();
   initNavigation();

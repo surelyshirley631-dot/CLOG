@@ -729,6 +729,18 @@ h3 {
   font-weight: 700;
 }
 
+.brew-reminder-status--error {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: #b71c1c;
+  background: rgba(255, 235, 238, 0.9);
+  border: 1px solid rgba(183, 28, 28, 0.18);
+  font-weight: 600;
+}
+
 .brew-power-reminder-modal {
   position: fixed;
   inset: 0;

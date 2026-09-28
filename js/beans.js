@@ -33,13 +33,23 @@ export function getBeans() {
   return loadBeans();
 }
 
-export function updateBeanStock(beanId, deltaGrams) {
+export function updateBeanStock(beanId, deltaGrams, options = {}) {
   const beans = loadBeans();
   const idx = beans.findIndex(b => b.id === beanId);
   if (idx === -1) return;
   const bean = beans[idx];
   const current = typeof bean.remainingWeight === "number" ? bean.remainingWeight : bean.initialWeight || 0;
   const updated = Math.max(0, current - (deltaGrams || 0));
+  const snapshot = bean;
+  if (options.dryRun) {
+    return () => {
+      const liveBeans = loadBeans();
+      const liveIdx = liveBeans.findIndex(b => b.id === beanId);
+      if (liveIdx === -1) return;
+      liveBeans[liveIdx] = { ...liveBeans[liveIdx], ...snapshot };
+      saveBeans(liveBeans);
+    };
+  }
   beans[idx] = { ...bean, remainingWeight: updated };
   saveBeans(beans);
 }

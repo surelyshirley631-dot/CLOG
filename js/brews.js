@@ -161,6 +161,26 @@ function getPowerReminderStatusEl() {
   return document.getElementById("brew-power-reminder-status");
 }
 
+function syncFormError(title, rawMessage) {
+  const el = getPowerReminderStatusEl();
+  if (!el) {
+    const safeTitle = String(title || "Save failed.");
+    const safeDetails = String(rawMessage || "").trim();
+    console.warn(safeTitle, safeDetails);
+    return;
+  }
+  el.dataset.previousState = el.dataset.previousState || "ok";
+  const safeTitle = String(title || "Save failed.").trim();
+  const safeDetails = String(rawMessage || "").trim();
+  el.textContent = safeDetails ? `${safeTitle} (${safeDetails})` : safeTitle;
+  el.className = "brew-reminder-status brew-reminder-status--error";
+  window.setTimeout(() => {
+    if (el.className !== "brew-reminder-status brew-reminder-status--error") return;
+    el.className = "brew-reminder-status";
+    el.textContent = "Power-off reminder sends after you tap Save brew.";
+  }, 5200);
+}
+
 function getPowerReminderModal() {
   let modal = document.getElementById("brew-power-reminder-modal");
   if (modal) return modal;
@@ -1049,6 +1069,7 @@ export function bindBrewsUi() {
     };
 
     let brew;
+    const brewsSnapshot = brews.slice();
     if (editingId) {
       const idx = brews.findIndex(b => b.id === editingId);
       if (idx !== -1) {
@@ -1063,11 +1084,34 @@ export function bindBrewsUi() {
       brew = { id: generateId(), ...base };
       brews.unshift(brew);
     }
-    saveBrews(brews);
 
-    if (!editingId && brew.beanId && brew.doseGrams) {
-      updateBeanStock(brew.beanId, brew.doseGrams);
-      document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans: getBeans() } }));
+    try {
+      saveBrews(brews);
+    } catch (error) {
+      brews.length = 0;
+      brews.push(...brewsSnapshot);
+      syncFormError(
+        "这次 brew 没有保存成功。通常是本地存储空间不够。先去 Settings 里启用 Firebase，或删掉几张照片后再试。",
+        error instanceof Error ? error.message : ""
+      );
+      return;
+    }
+
+    let stockRollback = null;
+    try {
+      if (!editingId && brew.beanId && brew.doseGrams) {
+        stockRollback = updateBeanStock(brew.beanId, Number(brew.doseGrams), { dryRun: true });
+        updateBeanStock(brew.beanId, brew.doseGrams);
+        document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans: getBeans() } }));
+      }
+    } catch (error) {
+      if (stockRollback && typeof stockRollback === "function") {
+        try { stockRollback(); } catch (_) { /* no-op */ }
+      }
+      syncFormError(
+        "Brew 已保存，但豆子库存扣减失败。可以稍后在 Beans 里手动调整。",
+        error instanceof Error ? error.message : ""
+      );
     }
 
     editingId = null;
@@ -1133,6 +1177,7 @@ export function bindHomeBrewsPreview() {
   let highlightId = "";
   let clearHighlightHandle = 0;
   let criterion = "date";
+  let renderFrame = 0;
   const setActive = () => {
     controls.querySelectorAll("[data-sort]").forEach(btn => {
       const isActive = (btn.getAttribute("data-sort") || "") === criterion;
@@ -1147,7 +1192,15 @@ export function bindHomeBrewsPreview() {
       target.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 280);
   };
-  const apply = () => {
+  const currentPanel = () => {
+    const panel = typeof window.__currentPanelId === "string" ? window.__currentPanelId : null;
+    return panel || document.body.getAttribute("data-current-panel") || "";
+  };
+  const isHomeActive = () => {
+    const p = currentPanel();
+    return !p || p === "home";
+  };
+  const applyCore = () => {
     const brews = loadBrews().slice();
     const dir = dirSelect.value || "desc";
     const mul = dir === "asc" ? 1 : -1;
@@ -1161,27 +1214,39 @@ export function bindHomeBrewsPreview() {
     renderBrews(list, brews, detailId, highlightId);
     setActive();
   };
+  const apply = (options = {}) => {
+    if (!options.force && !isHomeActive()) return;
+    if (renderFrame) {
+      window.cancelAnimationFrame(renderFrame);
+    }
+    renderFrame = window.requestAnimationFrame(() => {
+      renderFrame = 0;
+      applyCore();
+    });
+  };
   controls.querySelectorAll("[data-sort]").forEach(btn => {
     btn.addEventListener("click", () => {
       criterion = btn.getAttribute("data-sort") || "date";
-      apply();
+      apply({ force: true });
     });
   });
-  dirSelect.addEventListener("change", apply);
+  dirSelect.addEventListener("change", () => {
+    apply({ force: true });
+  });
   list.addEventListener("click", event => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     const li = target.closest("li");
     if (!li || !li.dataset.brewId) return;
-    if (!target.classList.contains("brew-view-button")) return;
+    const viewBtn = target.closest(".brew-view-button");
+    if (!viewBtn) return;
     const brewId = li.dataset.brewId;
     if (detailId === brewId) {
       detailId = "";
-      apply();
-      return;
+    } else {
+      detailId = brewId;
     }
-    detailId = brewId;
-    apply();
+    apply({ force: true });
   });
   document.addEventListener("focus-brew", event => {
     const detail = event instanceof CustomEvent ? event.detail : null;
@@ -1192,15 +1257,20 @@ export function bindHomeBrewsPreview() {
     if (clearHighlightHandle) {
       window.clearTimeout(clearHighlightHandle);
     }
-    apply();
+    apply({ force: true });
     scrollHighlightedBrewIntoView();
     clearHighlightHandle = window.setTimeout(() => {
       highlightId = "";
       apply();
     }, 3200);
   });
-  apply();
-  document.addEventListener("brews-updated", apply);
+  document.addEventListener("home-panel-will-show", () => {
+    apply({ force: true });
+  });
+  apply({ force: true });
+  document.addEventListener("brews-updated", () => {
+    apply();
+  });
 }
 export function refillLastBrewIfConfirmed() {
   const dateInput = document.getElementById("brew-date");

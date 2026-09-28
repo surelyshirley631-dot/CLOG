@@ -187,6 +187,24 @@ function mapMachineToCloudRecord(machine) {
   };
 }
 
+function mapGrinderToCloudRecord(grinder) {
+  const photoUrl = grinder.photoUrl || (isRemoteUrl(grinder.photoDataUrl) ? grinder.photoDataUrl : "");
+  return {
+    id: String(grinder.id || ""),
+    name: grinder.name || "",
+    notes: grinder.notes || "",
+    photoUrl: photoUrl || "",
+    photoStoragePath: grinder.photoStoragePath || "",
+    payload: {
+      ...grinder,
+      photoDataUrl: photoUrl || "",
+      photoUrl: photoUrl || "",
+      photoStoragePath: grinder.photoStoragePath || ""
+    },
+    updatedAt: new Date().toISOString()
+  };
+}
+
 async function saveRecord(services, collectionName, id, payload) {
   await setDoc(doc(services.db, collectionName, String(id || "")), payload, { merge: true });
 }
@@ -209,6 +227,16 @@ async function uploadBeanPhotoInternal(services, beanId, dataUrl) {
 
 async function uploadMachinePhotoInternal(services, machineId, dataUrl) {
   const objectPath = `machines/${machineId}.jpg`;
+  const photoUrl = await uploadMediaDataUrl(services, objectPath, dataUrl);
+  return {
+    photoDataUrl: photoUrl,
+    photoUrl,
+    photoStoragePath: objectPath
+  };
+}
+
+async function uploadGrinderPhotoInternal(services, grinderId, dataUrl) {
+  const objectPath = `grinders/${grinderId}.jpg`;
   const photoUrl = await uploadMediaDataUrl(services, objectPath, dataUrl);
   return {
     photoDataUrl: photoUrl,
@@ -251,6 +279,23 @@ async function prepareMachineForCloud(services, machine) {
   };
 }
 
+async function prepareGrinderForCloud(services, grinder) {
+  if (!grinder || !grinder.id) return grinder;
+  if (!isImageDataUrl(grinder.photoDataUrl)) {
+    const photoUrl = grinder.photoUrl || (isRemoteUrl(grinder.photoDataUrl) ? grinder.photoDataUrl : "");
+    return {
+      ...grinder,
+      photoDataUrl: photoUrl || grinder.photoDataUrl || "",
+      photoUrl: photoUrl || "",
+      photoStoragePath: grinder.photoStoragePath || ""
+    };
+  }
+  return {
+    ...grinder,
+    ...(await uploadGrinderPhotoInternal(services, grinder.id, grinder.photoDataUrl))
+  };
+}
+
 async function syncBrewsInternal(services, brews) {
   if (!brews.length) return { skipped: true, brews };
   for (const brew of brews) {
@@ -279,6 +324,17 @@ async function syncMachinesInternal(services, machines) {
     preparedMachines.push(preparedMachine);
   }
   return { skipped: false, machines: preparedMachines };
+}
+
+async function syncGrindersInternal(services, grinders) {
+  if (!grinders.length) return { skipped: true, grinders };
+  const preparedGrinders = [];
+  for (const grinder of grinders) {
+    const preparedGrinder = await prepareGrinderForCloud(services, grinder);
+    await saveRecord(services, "grinders", preparedGrinder.id, mapGrinderToCloudRecord(preparedGrinder));
+    preparedGrinders.push(preparedGrinder);
+  }
+  return { skipped: false, grinders: preparedGrinders };
 }
 
 function enqueueSync(task) {
@@ -382,20 +438,24 @@ export function syncAllDataToCloud() {
       emitSyncStatus("idle");
       return { skipped: true };
     }
-    emitSyncStatus("syncing", "Backing up brews, beans, and machines to Firebase");
+    emitSyncStatus("syncing", "Backing up brews, beans, grinders, and machines to Firebase");
     try {
       const services = getFirebaseServices(config);
       const brewResult = await syncBrewsInternal(services, loadBrews());
       const beanResult = await syncBeansInternal(services, loadBeans());
+      const grinderResult = await syncGrindersInternal(services, loadGrinders());
       const machineResult = await syncMachinesInternal(services, loadMachines());
       if (beanResult.beans && beanResult.beans.length) {
         saveBeans(beanResult.beans);
+      }
+      if (grinderResult.grinders && grinderResult.grinders.length) {
+        saveGrinders(grinderResult.grinders);
       }
       if (machineResult.machines && machineResult.machines.length) {
         saveMachines(machineResult.machines);
       }
       return {
-        skipped: brewResult.skipped && beanResult.skipped && machineResult.skipped,
+        skipped: brewResult.skipped && beanResult.skipped && grinderResult.skipped && machineResult.skipped,
         syncedAt: completeSync(config)
       };
     } catch (error) {
@@ -471,6 +531,42 @@ export async function uploadMachinePhotoToCloud(machineId, dataUrl) {
   try {
     const services = getFirebaseServices(config);
     return { skipped: false, ...(await uploadMachinePhotoInternal(services, machineId, dataUrl)) };
+  } catch (error) {
+    const message = saveSyncError(config, error instanceof Error ? error.message : "");
+    throw new Error(message);
+  }
+}
+
+export function syncGrinderToCloud(grinder) {
+  return enqueueSync(async () => {
+    const config = getConfig();
+    if (!isConfigured(config)) {
+      emitSyncStatus("idle");
+      return { skipped: true, grinder };
+    }
+    emitSyncStatus("syncing", "Backing up grinder to Firebase");
+    try {
+      const services = getFirebaseServices(config);
+      const result = await syncGrindersInternal(services, [grinder]);
+      const syncedGrinder = result.grinders && result.grinders[0] ? result.grinders[0] : grinder;
+      const nextGrinders = loadGrinders().map(item => (item.id === syncedGrinder.id ? { ...item, ...syncedGrinder } : item));
+      saveGrinders(nextGrinders);
+      return { skipped: false, grinder: syncedGrinder, syncedAt: completeSync(config) };
+    } catch (error) {
+      const message = saveSyncError(config, error instanceof Error ? error.message : "");
+      throw new Error(message);
+    }
+  });
+}
+
+export async function uploadGrinderPhotoToCloud(grinderId, dataUrl) {
+  const config = getConfig();
+  if (!isConfigured(config) || !grinderId || !isImageDataUrl(dataUrl)) {
+    return { skipped: true, photoDataUrl: dataUrl || "", photoUrl: "", photoStoragePath: "" };
+  }
+  try {
+    const services = getFirebaseServices(config);
+    return { skipped: false, ...(await uploadGrinderPhotoInternal(services, grinderId, dataUrl)) };
   } catch (error) {
     const message = saveSyncError(config, error instanceof Error ? error.message : "");
     throw new Error(message);
