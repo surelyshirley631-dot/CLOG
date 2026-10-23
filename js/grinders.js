@@ -1,5 +1,7 @@
 import { loadGrinders, saveGrinders } from "./storage.js";
-import { syncGrinderToCloud, uploadGrinderPhotoToCloud } from "./sync.js";
+import {
+  saveGrinderCloudFirst
+} from "./sync.js";
 
 function generateId() {
   return `grinder_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -154,9 +156,16 @@ export function bindGrindersUi() {
   const photoInput = document.getElementById("grinder-photo-setting");
   const list = document.getElementById("grinder-list");
   const clearBtn = document.getElementById("clear-grinders");
+  const statusEl = document.getElementById("grinder-form-status");
   if (!form || !nameInput || !list || !clearBtn) return;
 
   let editingId = null;
+
+  const setStatus = (message, tone = "") => {
+    if (!statusEl) return;
+    statusEl.textContent = message;
+    statusEl.className = tone ? `bean-ocr-status ${tone}` : "bean-ocr-status";
+  };
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
@@ -167,107 +176,99 @@ export function bindGrindersUi() {
     const targetGrinderId = editingId || generateId();
     const file = photoInput && photoInput.files ? photoInput.files[0] : null;
 
-    const buildNextGrinders = media => {
-      const nextMedia = media && typeof media === "object" ? media : {};
+    let photoCandidates = [];
+    if (file) {
+      setStatus("Processing grinder photo…", "is-working");
+      try {
+        photoCandidates = await optimizeGrinderPhotoCandidates(file);
+      } catch {
+        setStatus("Grinder photo could not be processed. Please try another image.", "is-error");
+        window.alert("Grinder photo could not be processed. Please try another image.");
+        return;
+      }
+    }
+
+    setStatus("Saving grinder to Firebase…", "is-working");
+    const baseGrinder = (() => {
       if (editingId) {
-        const idx = grinders.findIndex(grinder => grinder.id === editingId);
-        if (idx !== -1) {
-          const next = grinders.slice();
-          const existing = next[idx];
-          next[idx] = {
+        const existing = grinders.find(grinder => grinder.id === editingId);
+        if (existing) {
+          return {
             ...existing,
             name,
-            notes,
-            photoDataUrl: nextMedia.photoDataUrl || existing.photoDataUrl || "",
-            photoUrl: nextMedia.photoUrl || existing.photoUrl || "",
-            photoStoragePath: nextMedia.photoStoragePath || existing.photoStoragePath || ""
+            notes
           };
-          return next;
         }
       }
-      return [
-        ...grinders,
-        {
-          id: targetGrinderId,
-          name,
-          notes,
-          photoDataUrl: nextMedia.photoDataUrl || "",
-          photoUrl: nextMedia.photoUrl || "",
-          photoStoragePath: nextMedia.photoStoragePath || ""
-        }
-      ];
-    };
+      return {
+        id: targetGrinderId,
+        name,
+        notes
+      };
+    })();
 
-    const finalize = nextGrinders => {
-      if (!nextGrinders) return;
-      const activeEditingId = editingId;
-      editingId = null;
-      nameInput.value = "";
-      if (notesInput) {
-        notesInput.value = "";
-      }
-      if (photoInput) {
-        photoInput.value = "";
-      }
-      renderGrinderList(list, nextGrinders);
-      refreshGrinderSelect();
-      document.dispatchEvent(new CustomEvent("grinders-updated", { detail: { grinders: nextGrinders } }));
-      const savedGrinder = activeEditingId
-        ? nextGrinders.find(grinder => grinder.id === activeEditingId)
-        : nextGrinders[nextGrinders.length - 1];
-      if (savedGrinder) {
-        syncGrinderToCloud(savedGrinder).catch(error => {
-          console.error("Grinder cloud backup failed", error);
-        });
-      }
-    };
-
-    if (file) {
+    let result = null;
+    let usedPhotoDataUrl = "";
+    const fallbackErrorMessages = [];
+    const candidates = photoCandidates.length ? photoCandidates : [""];
+    for (const photoDataUrl of candidates) {
       try {
-        const photoCandidates = await optimizeGrinderPhotoCandidates(file);
-        let nextGrinders = null;
-        let cloudMedia = null;
-        if (photoCandidates[0]) {
-          try {
-            const uploadResult = await uploadGrinderPhotoToCloud(targetGrinderId, photoCandidates[0]);
-            if (!uploadResult.skipped) {
-              cloudMedia = uploadResult;
-            }
-          } catch (error) {
-            console.warn("Grinder photo cloud upload failed, falling back to local save.", error);
-          }
-        }
-        if (cloudMedia) {
-          nextGrinders = buildNextGrinders(cloudMedia);
-          if (!trySaveGrinders(nextGrinders)) {
-            window.alert("图片已上传云端，但本地保存没有完成。请重新保存一次。");
-            return;
-          }
-        } else {
-          for (const candidate of photoCandidates) {
-            const attemptedGrinders = buildNextGrinders({
-              photoDataUrl: candidate,
-              photoUrl: "",
-              photoStoragePath: ""
-            });
-            if (!trySaveGrinders(attemptedGrinders, { silent: true })) continue;
-            nextGrinders = attemptedGrinders;
-            break;
-          }
-        }
-        if (!nextGrinders) {
-          window.alert("保存失败：已自动尝试压缩图片，但当前浏览器可用空间还是不够。这次不会清空你已填写的研磨机信息，请换一张更小的图片后重试。");
-          return;
-        }
-        finalize(nextGrinders);
-      } catch {
-        window.alert("Grinder photo could not be processed. Please try another image.");
+        result = await saveGrinderCloudFirst(baseGrinder, {
+          photoDataUrl,
+          existingItems: grinders,
+          allowLocalPhotoDataUrl: false
+        });
+        usedPhotoDataUrl = photoDataUrl;
+        break;
+      } catch (error) {
+        fallbackErrorMessages.push(error instanceof Error ? error.message : "Grinder cloud save failed.");
       }
-    } else {
-      const nextGrinders = buildNextGrinders({});
-      if (!trySaveGrinders(nextGrinders)) return;
-      finalize(nextGrinders);
     }
+    if (!result && photoCandidates.length) {
+      try {
+        const smallestPhoto = photoCandidates[photoCandidates.length - 1];
+        result = await saveGrinderCloudFirst(baseGrinder, {
+          photoDataUrl: smallestPhoto,
+          existingItems: grinders,
+          allowLocalPhotoDataUrl: true
+        });
+        usedPhotoDataUrl = smallestPhoto;
+      } catch (_finalError) {
+        result = null;
+      }
+    }
+    if (!result) {
+      const lastMessage = fallbackErrorMessages[fallbackErrorMessages.length - 1] || "保存失败。";
+      setStatus(`${lastMessage} 这次没有保存成功，你填写的研磨机信息仍保留在表单里。`, "is-error");
+      window.alert(`保存失败：${lastMessage}。这次没有保存成功，你填写的研磨机信息仍保留在表单里。`);
+      return;
+    }
+
+    const activeEditingId = editingId;
+    editingId = null;
+    nameInput.value = "";
+    if (notesInput) {
+      notesInput.value = "";
+    }
+    if (photoInput) {
+      photoInput.value = "";
+    }
+    const nextGrinders = result.items;
+    if (result.mode === "cloud-first") {
+      setStatus("Saved to Firebase. Photos are kept in Storage, not in this device storage.", "is-success");
+    } else if (result.mode === "local-fallback") {
+      setStatus(
+        usedPhotoDataUrl
+          ? `Cloud save failed (${result.error || "unknown"}), so this grinder was saved locally first. Connect Firebase permissions to move the photo to cloud storage.`
+          : `Cloud save failed (${result.error || "unknown"}), so this grinder was saved locally first.`,
+        "is-warning"
+      );
+    } else {
+      setStatus("Saved locally. Enable Firebase in Settings to back this up.", "is-warning");
+    }
+    renderGrinderList(list, nextGrinders);
+    refreshGrinderSelect();
+    document.dispatchEvent(new CustomEvent("grinders-updated", { detail: { grinders: nextGrinders } }));
   });
 
   list.addEventListener("click", event => {

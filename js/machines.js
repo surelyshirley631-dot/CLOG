@@ -1,5 +1,7 @@
 import { loadMachines, saveMachines } from "./storage.js";
-import { syncMachineToCloud, uploadMachinePhotoToCloud } from "./sync.js";
+import {
+  saveMachineCloudFirst
+} from "./sync.js";
 
 function generateId() {
   return `machine_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -152,9 +154,16 @@ export function bindMachinesUi() {
   const photoInput = document.getElementById("machine-photo-setting");
   const list = document.getElementById("machine-list");
   const clearBtn = document.getElementById("clear-machines");
+  const statusEl = document.getElementById("machine-form-status");
   if (!form || !nameInput || !list || !clearBtn) return;
 
   let editingId = null;
+
+  const setStatus = (message, tone = "") => {
+    if (!statusEl) return;
+    statusEl.textContent = message;
+    statusEl.className = tone ? `bean-ocr-status ${tone}` : "bean-ocr-status";
+  };
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
@@ -165,101 +174,104 @@ export function bindMachinesUi() {
     const targetMachineId = editingId || generateId();
     const file = photoInput && photoInput.files ? photoInput.files[0] : null;
 
-    const buildNextMachines = media => {
-      const nextMedia = media && typeof media === "object" ? media : {};
-      if (editingId) {
-        return machines.map(machine => {
-          if (machine.id !== editingId) return machine;
-          return {
-            ...machine,
-            name,
-            notes,
-            photoDataUrl: nextMedia.photoDataUrl || machine.photoDataUrl || "",
-            photoUrl: nextMedia.photoUrl || machine.photoUrl || "",
-            photoStoragePath: nextMedia.photoStoragePath || machine.photoStoragePath || ""
-          };
-        });
-      }
-      return [
-        ...machines,
-        {
-          id: targetMachineId,
-          name,
-          notes,
-          photoDataUrl: nextMedia.photoDataUrl || "",
-          photoUrl: nextMedia.photoUrl || "",
-          photoStoragePath: nextMedia.photoStoragePath || ""
-        }
-      ];
-    };
-
-    const finalize = nextMachines => {
-      if (!nextMachines) return;
-      const activeEditingId = editingId;
-      editingId = null;
-      nameInput.value = "";
-      if (notesInput) {
-        notesInput.value = "";
-      }
-      if (photoInput) {
-        photoInput.value = "";
-      }
-      renderMachineList(list, nextMachines);
-      const select = document.getElementById("brew-machine");
-      if (select) {
-        renderMachineOptions(select);
-      }
-      document.dispatchEvent(new CustomEvent("machines-updated", { detail: { machines: nextMachines } }));
-      const savedMachine = activeEditingId ? nextMachines.find(machine => machine.id === activeEditingId) : nextMachines[nextMachines.length - 1];
-      if (savedMachine) {
-        syncMachineToCloud(savedMachine).catch(error => {
-          console.error("Machine cloud backup failed", error);
-        });
-      }
-    };
-
+    let photoCandidates = [];
     if (file) {
+      setStatus("Processing machine photo…", "is-working");
       try {
-        const photoCandidates = await optimizeMachinePhotoCandidates(file);
-        let nextMachines = null;
-        let cloudMedia = null;
-        if (photoCandidates[0]) {
-          try {
-            const uploadResult = await uploadMachinePhotoToCloud(targetMachineId, photoCandidates[0]);
-            if (!uploadResult.skipped) {
-              cloudMedia = uploadResult;
-            }
-          } catch (error) {
-            console.warn("Machine photo cloud upload failed, falling back to local save.", error);
-          }
-        }
-        if (cloudMedia) {
-          nextMachines = buildNextMachines(cloudMedia);
-          if (!trySaveMachines(nextMachines)) {
-            window.alert("图片已上传云端，但本地保存没有完成。请重新保存一次。");
-            return;
-          }
-        } else {
-          for (const candidate of photoCandidates) {
-            const attemptedMachines = buildNextMachines({ photoDataUrl: candidate, photoUrl: "", photoStoragePath: "" });
-            if (!trySaveMachines(attemptedMachines, { silent: true })) continue;
-            nextMachines = attemptedMachines;
-            break;
-          }
-        }
-        if (!nextMachines) {
-          window.alert("保存失败：已自动尝试压缩图片，但当前浏览器可用空间还是不够。这次不会清空你已填写的机器信息，请换一张更小的图片后重试。");
-          return;
-        }
-        finalize(nextMachines);
+        photoCandidates = await optimizeMachinePhotoCandidates(file);
       } catch {
+          setStatus("Machine photo could not be processed. Please try another image.", "is-error");
         window.alert("Machine photo could not be processed. Please try another image.");
+        return;
       }
-    } else {
-      const nextMachines = buildNextMachines({});
-      if (!trySaveMachines(nextMachines)) return;
-      finalize(nextMachines);
     }
+
+    setStatus("Saving machine to Firebase…", "is-working");
+    const baseMachine = (() => {
+      if (editingId) {
+        const existing = machines.find(machine => machine.id === editingId);
+        if (existing) {
+          return {
+            ...existing,
+            name,
+            notes
+          };
+        }
+      }
+      return {
+        id: targetMachineId,
+        name,
+        notes
+      };
+    })();
+
+    let result = null;
+    let usedPhotoDataUrl = "";
+    const fallbackErrorMessages = [];
+    const candidates = photoCandidates.length ? photoCandidates : [""];
+    for (const photoDataUrl of candidates) {
+      try {
+        result = await saveMachineCloudFirst(baseMachine, {
+          photoDataUrl,
+          existingItems: machines,
+          allowLocalPhotoDataUrl: false
+        });
+        usedPhotoDataUrl = photoDataUrl;
+        break;
+      } catch (error) {
+        fallbackErrorMessages.push(error instanceof Error ? error.message : "Machine cloud save failed.");
+      }
+    }
+    if (!result) {
+      if (photoCandidates.length) {
+        try {
+          const smallestPhoto = photoCandidates[photoCandidates.length - 1];
+          result = await saveMachineCloudFirst(baseMachine, {
+            photoDataUrl: smallestPhoto,
+            existingItems: machines,
+            allowLocalPhotoDataUrl: true
+          });
+          usedPhotoDataUrl = smallestPhoto;
+        } catch (_finalError) {
+          result = null;
+        }
+      }
+      if (!result) {
+        const lastMessage = fallbackErrorMessages[fallbackErrorMessages.length - 1] || "保存失败。";
+        setStatus(`${lastMessage} 这次没有保存成功，你填写的机器信息仍保留在表单里。`, "is-error");
+        window.alert(`保存失败：${lastMessage}。这次没有保存成功，你填写的机器信息仍保留在表单里。`);
+        return;
+      }
+    }
+
+    const activeEditingId = editingId;
+    editingId = null;
+    nameInput.value = "";
+    if (notesInput) {
+      notesInput.value = "";
+    }
+    if (photoInput) {
+      photoInput.value = "";
+    }
+    const nextMachines = result.items;
+    if (result.mode === "cloud-first") {
+      setStatus("Saved to Firebase. Photos are kept in Storage, not in this device storage.", "is-success");
+    } else if (result.mode === "local-fallback") {
+      setStatus(
+        usedPhotoDataUrl
+          ? `Cloud save failed (${result.error || "unknown"}), so this machine was saved locally first. Connect Firebase permissions to move the photo to cloud storage.`
+          : `Cloud save failed (${result.error || "unknown"}), so this machine was saved locally first.`,
+        "is-warning"
+      );
+    } else {
+      setStatus("Saved locally. Enable Firebase in Settings to back this up.", "is-warning");
+    }
+    renderMachineList(list, nextMachines);
+    const select = document.getElementById("brew-machine");
+    if (select) {
+      renderMachineOptions(select);
+    }
+    document.dispatchEvent(new CustomEvent("machines-updated", { detail: { machines: nextMachines } }));
   });
 
   list.addEventListener("click", event => {

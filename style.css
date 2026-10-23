@@ -729,6 +729,50 @@ h3 {
   font-weight: 700;
 }
 
+.brew-reminder-status[data-state="saving"] {
+  color: #6d4c41;
+  font-weight: 700;
+}
+
+.brew-reminder-status[data-state="saved"] {
+  color: #2e7d32;
+  font-weight: 700;
+}
+
+.brew-reminder-status--saving {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: #5d4037;
+  background: rgba(250, 243, 227, 0.96);
+  border: 1px solid rgba(141, 110, 99, 0.22);
+  font-weight: 600;
+  animation: brewSavePulse 1.35s ease-in-out infinite;
+}
+
+.brew-reminder-status--saved {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: #1b5e20;
+  background: rgba(232, 245, 233, 0.96);
+  border: 1px solid rgba(46, 125, 50, 0.22);
+  font-weight: 600;
+}
+
+@keyframes brewSavePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(141, 110, 99, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(141, 110, 99, 0.06);
+  }
+}
+
 .brew-reminder-status--error {
   margin-top: 2px;
   font-size: 0.74rem;

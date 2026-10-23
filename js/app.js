@@ -975,7 +975,9 @@ function initSettings() {
     if (syncSenderIdInput) syncSenderIdInput.value = settings.messagingSenderId || DEFAULT_FIREBASE_SYNC_CONFIG.messagingSenderId;
     if (syncAppIdInput) syncAppIdInput.value = settings.appId || DEFAULT_FIREBASE_SYNC_CONFIG.appId;
     if (syncHint) {
-      if (settings.enabled && settings.lastSyncedAt) {
+      if (settings.enabled && settings.lastError) {
+        syncHint.textContent = `Auto backup is enabled, but the last sync failed. ${settings.lastError} Fix Firestore / Storage permissions or network, then tap Sync all now.`;
+      } else if (settings.enabled && settings.lastSyncedAt) {
         syncHint.textContent = `Auto backup is enabled. Last sync: ${new Date(settings.lastSyncedAt).toLocaleString()}.`;
       } else if (settings.enabled) {
         syncHint.textContent = "Auto backup is enabled. New brews, beans, machines, and photos will sync to Firebase. Make sure Firestore and Storage are both turned on.";

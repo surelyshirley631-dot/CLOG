@@ -431,7 +431,7 @@ Aroma"></textarea>
 <div class="field-group full-width">
 <label for="bean-photo">Bean photo</label>
 <input type="file" id="bean-photo" accept="image/*">
-<small class="field-help">Photos are stored locally in your browser.</small>
+<small class="field-help">Photos are stored in Firebase Storage when backup is enabled; otherwise compressed and kept locally only as a last resort.</small>
 </div>
 <div class="form-actions full-width">
 <button type="submit" class="primary-button">Save beans</button>
@@ -456,11 +456,13 @@ Aroma"></textarea>
 <div class="field-group full-width">
 <label for="grinder-photo-setting">Photo</label>
 <input type="file" id="grinder-photo-setting" accept="image/*">
+<small class="field-help">Photos are stored in Firebase Storage when backup is enabled; otherwise compressed and kept locally only as a last resort.</small>
 </div>
 <div class="form-actions full-width">
 <button type="submit" class="primary-button">Add grinder</button>
 <button type="button" id="clear-grinders" class="ghost-button">Clear grinders</button>
 </div>
+<div id="grinder-form-status" class="bean-ocr-status" aria-live="polite"></div>
 </form>
 <ul id="grinder-list" class="item-list"></ul>
 </section>
@@ -481,11 +483,13 @@ Aroma"></textarea>
 <div class="field-group full-width">
 <label for="machine-photo-setting">Photo</label>
 <input type="file" id="machine-photo-setting" accept="image/*">
+<small class="field-help">Photos are stored in Firebase Storage when backup is enabled; otherwise compressed and kept locally only as a last resort.</small>
 </div>
 <div class="form-actions full-width">
 <button type="submit" class="primary-button">Add machine</button>
 <button type="button" id="clear-machines" class="ghost-button">Clear machines</button>
 </div>
+<div id="machine-form-status" class="bean-ocr-status" aria-live="polite"></div>
 </form>
 <ul id="machine-list" class="item-list"></ul>
 </section>

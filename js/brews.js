@@ -2,7 +2,7 @@ import { loadBrews, saveBrews, loadKnowledgeEntries, loadSelectedKnowledgeScopes
 import { getBeans, renderBeansOptions, updateBeanStock } from "./beans.js";
 import { renderGrinderOptions } from "./grinders.js";
 import { renderMachineOptions } from "./machines.js";
-import { syncBrewToCloud } from "./sync.js";
+import { saveBrewCloudFirst } from "./sync.js";
 
 function generateId() {
   return `brew_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -161,24 +161,50 @@ function getPowerReminderStatusEl() {
   return document.getElementById("brew-power-reminder-status");
 }
 
-function syncFormError(title, rawMessage) {
+function syncFormSaveState(state, rawMessage, rawError) {
   const el = getPowerReminderStatusEl();
+  const safeState = ["saving", "saved", "error", "idle"].includes(state) ? state : "idle";
+  const safeMessage = String(rawMessage || "").trim();
+  const safeError = String(rawError || "").trim();
   if (!el) {
-    const safeTitle = String(title || "Save failed.");
-    const safeDetails = String(rawMessage || "").trim();
-    console.warn(safeTitle, safeDetails);
+    console.warn(`[brew-save:${safeState}]`, safeMessage, safeError);
     return;
   }
-  el.dataset.previousState = el.dataset.previousState || "ok";
-  const safeTitle = String(title || "Save failed.").trim();
-  const safeDetails = String(rawMessage || "").trim();
-  el.textContent = safeDetails ? `${safeTitle} (${safeDetails})` : safeTitle;
-  el.className = "brew-reminder-status brew-reminder-status--error";
-  window.setTimeout(() => {
-    if (el.className !== "brew-reminder-status brew-reminder-status--error") return;
-    el.className = "brew-reminder-status";
-    el.textContent = "Power-off reminder sends after you tap Save brew.";
-  }, 5200);
+  if (safeState === "saving") {
+    el.dataset.state = "saving";
+    el.className = "brew-reminder-status brew-reminder-status--saving";
+    el.textContent = safeMessage || "Saving brew to Firebase…";
+    return;
+  }
+  if (safeState === "saved") {
+    el.dataset.state = "saved";
+    el.className = "brew-reminder-status brew-reminder-status--saved";
+    el.textContent = safeMessage || "Brew saved.";
+    window.setTimeout(() => {
+      if (!el.isConnected) return;
+      updatePowerReminderStatus();
+    }, 2800);
+    return;
+  }
+  if (safeState === "error") {
+    el.dataset.state = "error";
+    el.className = "brew-reminder-status brew-reminder-status--error";
+    el.textContent = safeError
+      ? safeMessage
+        ? `${safeMessage} (${safeError})`
+        : safeError
+      : safeMessage || "Brew save failed.";
+    window.setTimeout(() => {
+      if (!el.isConnected) return;
+      updatePowerReminderStatus();
+    }, 6200);
+    return;
+  }
+  updatePowerReminderStatus();
+}
+
+function syncFormError(title, rawMessage) {
+  syncFormSaveState("error", title, rawMessage);
 }
 
 function getPowerReminderModal() {
@@ -1068,30 +1094,18 @@ export function bindBrewsUi() {
       ratioText: computeRatio(dose, yieldGrams)
     };
 
-    let brew;
-    const brewsSnapshot = brews.slice();
-    if (editingId) {
-      const idx = brews.findIndex(b => b.id === editingId);
-      if (idx !== -1) {
-        const existing = brews[idx];
-        brew = { ...existing, ...base };
-        brews[idx] = brew;
-      } else {
-        brew = { id: generateId(), ...base };
-        brews.unshift(brew);
-      }
-    } else {
-      brew = { id: generateId(), ...base };
-      brews.unshift(brew);
-    }
-
+    syncFormSaveState("saving", "Saving brew to Firebase…");
+    let brew = { id: editingId || generateId(), ...base };
+    let nextBrews = brews.slice();
+    let saveResult = null;
     try {
-      saveBrews(brews);
+      saveResult = await saveBrewCloudFirst(brew, { existingItems: nextBrews });
+      nextBrews = saveResult.items;
+      brew = saveResult.brew || brew;
     } catch (error) {
-      brews.length = 0;
-      brews.push(...brewsSnapshot);
-      syncFormError(
-        "这次 brew 没有保存成功。通常是本地存储空间不够。先去 Settings 里启用 Firebase，或删掉几张照片后再试。",
+      syncFormSaveState(
+        "error",
+        "这次 brew 没有保存成功。",
         error instanceof Error ? error.message : ""
       );
       return;
@@ -1108,7 +1122,8 @@ export function bindBrewsUi() {
       if (stockRollback && typeof stockRollback === "function") {
         try { stockRollback(); } catch (_) { /* no-op */ }
       }
-      syncFormError(
+      syncFormSaveState(
+        "error",
         "Brew 已保存，但豆子库存扣减失败。可以稍后在 Beans 里手动调整。",
         error instanceof Error ? error.message : ""
       );
@@ -1125,12 +1140,20 @@ export function bindBrewsUi() {
     renderBeansOptions(beanSelect);
     renderMachineOptions(machineSelect);
     renderGrinderOptions(grinderSelect);
-    renderBrews(list, brews);
-    document.dispatchEvent(new CustomEvent("brews-updated", { detail: { brews } }));
+    renderBrews(list, nextBrews);
+    document.dispatchEvent(new CustomEvent("brews-updated", { detail: { brews: nextBrews } }));
     triggerPowerReminder();
-    syncBrewToCloud(brew).catch(error => {
-      console.error("Cloud backup failed", error);
-    });
+
+    if (saveResult && saveResult.mode === "cloud-first") {
+      syncFormSaveState("saved", "Saved to Firebase Firestore.");
+    } else if (saveResult && saveResult.mode === "local-fallback") {
+      syncFormSaveState(
+        "saved",
+        `Saved locally first (${saveResult.error || "cloud temporarily unreachable"}). It will retry once connectivity or permissions are fixed.`
+      );
+    } else {
+      syncFormSaveState("saved", "Saved locally. Enable Firebase in Settings to back this up.");
+    }
 
     const tips = buildOptimizationTips(brew);
     tipsList.innerHTML = "";

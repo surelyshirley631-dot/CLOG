@@ -1,7 +1,18 @@
 import { getApps, initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { doc, getFirestore, setDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { doc, getFirestore, setDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-lite.js";
 import { getDownloadURL, getStorage, ref, uploadString } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
-import { loadBeans, loadBrews, loadMachines, loadSyncSettings, saveBeans, saveMachines, saveSyncSettings } from "./storage.js";
+import {
+  loadBeans,
+  loadBrews,
+  loadGrinders,
+  loadMachines,
+  loadSyncSettings,
+  saveBeans,
+  saveBrews,
+  saveGrinders,
+  saveMachines,
+  saveSyncSettings
+} from "./storage.js";
 
 let syncQueue = Promise.resolve();
 let firebaseServices = null;
@@ -115,6 +126,9 @@ function describeCloudFailure(rawMessage = "") {
   }
   if (/bucket/i.test(message)) {
     return "Firebase Storage bucket is not ready. Check the storageBucket value and Storage setup.";
+  }
+  if (/timed out after/i.test(message)) {
+    return `${message} Most likely cause: Firestore rules deny writes or anonymous auth is off.`;
   }
   return message;
 }
@@ -431,6 +445,31 @@ export function syncBrewToCloud(brew) {
   });
 }
 
+function withSyncTimeout(promise, timeoutMs, label) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`${label || "Sync"} timed out after ${Math.round(timeoutMs / 1000)}s waiting for Firebase.`));
+    }, timeoutMs);
+    Promise.resolve(promise).then(
+      value => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      error => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 export function syncAllDataToCloud() {
   return enqueueSync(async () => {
     const config = getConfig();
@@ -441,23 +480,27 @@ export function syncAllDataToCloud() {
     emitSyncStatus("syncing", "Backing up brews, beans, grinders, and machines to Firebase");
     try {
       const services = getFirebaseServices(config);
-      const brewResult = await syncBrewsInternal(services, loadBrews());
-      const beanResult = await syncBeansInternal(services, loadBeans());
-      const grinderResult = await syncGrindersInternal(services, loadGrinders());
-      const machineResult = await syncMachinesInternal(services, loadMachines());
-      if (beanResult.beans && beanResult.beans.length) {
-        saveBeans(beanResult.beans);
-      }
-      if (grinderResult.grinders && grinderResult.grinders.length) {
-        saveGrinders(grinderResult.grinders);
-      }
-      if (machineResult.machines && machineResult.machines.length) {
-        saveMachines(machineResult.machines);
-      }
-      return {
-        skipped: brewResult.skipped && beanResult.skipped && grinderResult.skipped && machineResult.skipped,
-        syncedAt: completeSync(config)
-      };
+      const totalTimeoutMs = 35000;
+      const inner = (async () => {
+        const brewResult = await syncBrewsInternal(services, loadBrews());
+        const beanResult = await syncBeansInternal(services, loadBeans());
+        const grinderResult = await syncGrindersInternal(services, loadGrinders());
+        const machineResult = await syncMachinesInternal(services, loadMachines());
+        if (beanResult.beans && beanResult.beans.length) {
+          saveBeans(beanResult.beans);
+        }
+        if (grinderResult.grinders && grinderResult.grinders.length) {
+          saveGrinders(grinderResult.grinders);
+        }
+        if (machineResult.machines && machineResult.machines.length) {
+          saveMachines(machineResult.machines);
+        }
+        return {
+          skipped: brewResult.skipped && beanResult.skipped && grinderResult.skipped && machineResult.skipped,
+          syncedAt: completeSync(config)
+        };
+      })();
+      return await withSyncTimeout(inner, totalTimeoutMs, "Cloud sync");
     } catch (error) {
       const message = saveSyncError(config, error instanceof Error ? error.message : "");
       throw new Error(message);
@@ -570,5 +613,255 @@ export async function uploadGrinderPhotoToCloud(grinderId, dataUrl) {
   } catch (error) {
     const message = saveSyncError(config, error instanceof Error ? error.message : "");
     throw new Error(message);
+  }
+}
+
+function patchById(items, nextItem) {
+  if (!nextItem || !nextItem.id) return items;
+  const cloned = Array.isArray(items) ? items.slice() : [];
+  const index = cloned.findIndex(item => item && item.id === nextItem.id);
+  if (index === -1) {
+    cloned.unshift(nextItem);
+  } else {
+    cloned[index] = { ...(cloned[index] || {}), ...nextItem };
+  }
+  return cloned;
+}
+
+function saveLocallyWithPhotoFallback({ type, items, nextItem, cloudMedia, localSaveFn }) {
+  const media = cloudMedia && typeof cloudMedia === "object"
+    ? {
+        photoDataUrl: cloudMedia.photoUrl || cloudMedia.photoDataUrl || "",
+        photoUrl: cloudMedia.photoUrl || "",
+        photoStoragePath: cloudMedia.photoStoragePath || ""
+      }
+    : { photoDataUrl: "", photoUrl: "", photoStoragePath: "" };
+  const merged = {
+    ...nextItem,
+    photoDataUrl: media.photoDataUrl || nextItem.photoDataUrl || "",
+    photoUrl: media.photoUrl || nextItem.photoUrl || "",
+    photoStoragePath: media.photoStoragePath || nextItem.photoStoragePath || ""
+  };
+  const patched = patchById(items, merged);
+  localSaveFn(patched);
+  return patched;
+}
+
+export async function saveBeanCloudFirst(beanDraft, options = {}) {
+  const { photoDataUrl = "", existingItems = null } = options;
+  const config = getConfig();
+  if (!beanDraft || !beanDraft.id) {
+    throw new Error("Bean id is required to save cloud-first.");
+  }
+  const beans = Array.isArray(existingItems) ? existingItems : loadBeans();
+  if (!isConfigured(config)) {
+    const saved = saveLocallyWithPhotoFallback({
+      type: "bean",
+      items: beans,
+      nextItem: beanDraft,
+      cloudMedia: photoDataUrl ? { photoDataUrl, photoUrl: "", photoStoragePath: "" } : null,
+      localSaveFn: saveBeans
+    });
+    return { mode: "local-only", bean: saved.find(item => item.id === beanDraft.id) || beanDraft, items: saved };
+  }
+  try {
+    const services = getFirebaseServices(config);
+    let cloudMedia = null;
+    if (photoDataUrl && isImageDataUrl(photoDataUrl)) {
+      cloudMedia = await uploadBeanPhotoInternal(services, beanDraft.id, photoDataUrl);
+    }
+    const mergedBean = {
+      ...beanDraft,
+      photoDataUrl: cloudMedia ? cloudMedia.photoUrl : beanDraft.photoDataUrl || "",
+      photoUrl: cloudMedia ? cloudMedia.photoUrl : beanDraft.photoUrl || "",
+      photoStoragePath: cloudMedia ? cloudMedia.photoStoragePath : beanDraft.photoStoragePath || ""
+    };
+    const prepared = await prepareBeanForCloud(services, mergedBean);
+    await saveRecord(services, "beans", prepared.id, mapBeanToCloudRecord(prepared));
+    const savedItems = saveLocallyWithPhotoFallback({
+      type: "bean",
+      items: beans,
+      nextItem: prepared,
+      cloudMedia,
+      localSaveFn: saveBeans
+    });
+    completeSync(config);
+    return { mode: "cloud-first", bean: savedItems.find(item => item.id === prepared.id) || prepared, items: savedItems };
+  } catch (cloudError) {
+    const described = describeCloudFailure(cloudError instanceof Error ? cloudError.message : "");
+    saveSyncError(config, described);
+    if (photoDataUrl && !options.allowLocalPhotoDataUrl) {
+      throw new Error(`Cloud save failed and local storage can no longer keep large photo payloads. ${described}`);
+    }
+    const savedItems = saveLocallyWithPhotoFallback({
+      type: "bean",
+      items: beans,
+      nextItem: beanDraft,
+      cloudMedia: photoDataUrl ? { photoDataUrl, photoUrl: "", photoStoragePath: "" } : null,
+      localSaveFn: saveBeans
+    });
+    return {
+      mode: "local-fallback",
+      bean: savedItems.find(item => item.id === beanDraft.id) || beanDraft,
+      items: savedItems,
+      error: described
+    };
+  }
+}
+
+export async function saveMachineCloudFirst(machineDraft, options = {}) {
+  const { photoDataUrl = "", existingItems = null } = options;
+  const config = getConfig();
+  if (!machineDraft || !machineDraft.id) {
+    throw new Error("Machine id is required to save cloud-first.");
+  }
+  const machines = Array.isArray(existingItems) ? existingItems : loadMachines();
+  if (!isConfigured(config)) {
+    const saved = saveLocallyWithPhotoFallback({
+      type: "machine",
+      items: machines,
+      nextItem: machineDraft,
+      cloudMedia: photoDataUrl ? { photoDataUrl, photoUrl: "", photoStoragePath: "" } : null,
+      localSaveFn: saveMachines
+    });
+    return { mode: "local-only", machine: saved.find(item => item.id === machineDraft.id) || machineDraft, items: saved };
+  }
+  try {
+    const services = getFirebaseServices(config);
+    let cloudMedia = null;
+    if (photoDataUrl && isImageDataUrl(photoDataUrl)) {
+      cloudMedia = await uploadMachinePhotoInternal(services, machineDraft.id, photoDataUrl);
+    }
+    const mergedMachine = {
+      ...machineDraft,
+      photoDataUrl: cloudMedia ? cloudMedia.photoUrl : machineDraft.photoDataUrl || "",
+      photoUrl: cloudMedia ? cloudMedia.photoUrl : machineDraft.photoUrl || "",
+      photoStoragePath: cloudMedia ? cloudMedia.photoStoragePath : machineDraft.photoStoragePath || ""
+    };
+    const prepared = await prepareMachineForCloud(services, mergedMachine);
+    await saveRecord(services, "machines", prepared.id, mapMachineToCloudRecord(prepared));
+    const savedItems = saveLocallyWithPhotoFallback({
+      type: "machine",
+      items: machines,
+      nextItem: prepared,
+      cloudMedia,
+      localSaveFn: saveMachines
+    });
+    completeSync(config);
+    return { mode: "cloud-first", machine: savedItems.find(item => item.id === prepared.id) || prepared, items: savedItems };
+  } catch (cloudError) {
+    const described = describeCloudFailure(cloudError instanceof Error ? cloudError.message : "");
+    saveSyncError(config, described);
+    if (photoDataUrl && !options.allowLocalPhotoDataUrl) {
+      throw new Error(`Cloud save failed and local storage can no longer keep large photo payloads. ${described}`);
+    }
+    const savedItems = saveLocallyWithPhotoFallback({
+      type: "machine",
+      items: machines,
+      nextItem: machineDraft,
+      cloudMedia: photoDataUrl ? { photoDataUrl, photoUrl: "", photoStoragePath: "" } : null,
+      localSaveFn: saveMachines
+    });
+    return {
+      mode: "local-fallback",
+      machine: savedItems.find(item => item.id === machineDraft.id) || machineDraft,
+      items: savedItems,
+      error: described
+    };
+  }
+}
+
+export async function saveGrinderCloudFirst(grinderDraft, options = {}) {
+  const { photoDataUrl = "", existingItems = null } = options;
+  const config = getConfig();
+  if (!grinderDraft || !grinderDraft.id) {
+    throw new Error("Grinder id is required to save cloud-first.");
+  }
+  const grinders = Array.isArray(existingItems) ? existingItems : loadGrinders();
+  if (!isConfigured(config)) {
+    const saved = saveLocallyWithPhotoFallback({
+      type: "grinder",
+      items: grinders,
+      nextItem: grinderDraft,
+      cloudMedia: photoDataUrl ? { photoDataUrl, photoUrl: "", photoStoragePath: "" } : null,
+      localSaveFn: saveGrinders
+    });
+    return { mode: "local-only", grinder: saved.find(item => item.id === grinderDraft.id) || grinderDraft, items: saved };
+  }
+  try {
+    const services = getFirebaseServices(config);
+    let cloudMedia = null;
+    if (photoDataUrl && isImageDataUrl(photoDataUrl)) {
+      cloudMedia = await uploadGrinderPhotoInternal(services, grinderDraft.id, photoDataUrl);
+    }
+    const mergedGrinder = {
+      ...grinderDraft,
+      photoDataUrl: cloudMedia ? cloudMedia.photoUrl : grinderDraft.photoDataUrl || "",
+      photoUrl: cloudMedia ? cloudMedia.photoUrl : grinderDraft.photoUrl || "",
+      photoStoragePath: cloudMedia ? cloudMedia.photoStoragePath : grinderDraft.photoStoragePath || ""
+    };
+    const prepared = await prepareGrinderForCloud(services, mergedGrinder);
+    await saveRecord(services, "grinders", prepared.id, mapGrinderToCloudRecord(prepared));
+    const savedItems = saveLocallyWithPhotoFallback({
+      type: "grinder",
+      items: grinders,
+      nextItem: prepared,
+      cloudMedia,
+      localSaveFn: saveGrinders
+    });
+    completeSync(config);
+    return { mode: "cloud-first", grinder: savedItems.find(item => item.id === prepared.id) || prepared, items: savedItems };
+  } catch (cloudError) {
+    const described = describeCloudFailure(cloudError instanceof Error ? cloudError.message : "");
+    saveSyncError(config, described);
+    if (photoDataUrl && !options.allowLocalPhotoDataUrl) {
+      throw new Error(`Cloud save failed and local storage can no longer keep large photo payloads. ${described}`);
+    }
+    const savedItems = saveLocallyWithPhotoFallback({
+      type: "grinder",
+      items: grinders,
+      nextItem: grinderDraft,
+      cloudMedia: photoDataUrl ? { photoDataUrl, photoUrl: "", photoStoragePath: "" } : null,
+      localSaveFn: saveGrinders
+    });
+    return {
+      mode: "local-fallback",
+      grinder: savedItems.find(item => item.id === grinderDraft.id) || grinderDraft,
+      items: savedItems,
+      error: described
+    };
+  }
+}
+
+export async function saveBrewCloudFirst(brewDraft, options = {}) {
+  const { existingItems = null } = options;
+  const config = getConfig();
+  if (!brewDraft || !brewDraft.id) {
+    throw new Error("Brew id is required to save cloud-first.");
+  }
+  const brews = Array.isArray(existingItems) ? existingItems : loadBrews();
+  if (!isConfigured(config)) {
+    const patched = patchById(brews, brewDraft);
+    saveBrews(patched);
+    return { mode: "local-only", brew: patched.find(item => item.id === brewDraft.id) || brewDraft, items: patched };
+  }
+  try {
+    const services = getFirebaseServices(config);
+    await saveRecord(services, "brews", brewDraft.id, mapBrewToCloudRecord(brewDraft));
+    const patched = patchById(brews, brewDraft);
+    saveBrews(patched);
+    completeSync(config);
+    return { mode: "cloud-first", brew: patched.find(item => item.id === brewDraft.id) || brewDraft, items: patched };
+  } catch (cloudError) {
+    const described = describeCloudFailure(cloudError instanceof Error ? cloudError.message : "");
+    saveSyncError(config, described);
+    const patched = patchById(brews, brewDraft);
+    saveBrews(patched);
+    return {
+      mode: "local-fallback",
+      brew: patched.find(item => item.id === brewDraft.id) || brewDraft,
+      items: patched,
+      error: described
+    };
   }
 }

@@ -1,5 +1,7 @@
 import { loadBeans, saveBeans } from "./storage.js";
-import { syncBeanToCloud, uploadBeanPhotoToCloud } from "./sync.js";
+import {
+  saveBeanCloudFirst
+} from "./sync.js";
 
 function generateId() {
   return `bean_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -358,86 +360,81 @@ export function bindBeansUi() {
     const notes = notesInput ? notesInput.value.trim() : "";
 
     const file = photoInput && photoInput.files ? photoInput.files[0] : null;
-    const buildNextBeans = media => {
-      const nextMedia = media && typeof media === "object" ? media : {};
-      if (editingId) {
-        return beans.map(bean => {
-          if (bean.id !== editingId) return bean;
-          return {
-            ...bean,
-            name,
-            beanType,
-            roastType,
-            openDate,
-            notes,
-            photoDataUrl: nextMedia.photoDataUrl || bean.photoDataUrl || "",
-            photoUrl: nextMedia.photoUrl || bean.photoUrl || "",
-            photoStoragePath: nextMedia.photoStoragePath || bean.photoStoragePath || ""
-          };
-        });
-      }
-      return [
-        {
-          id: targetBeanId,
-          name,
-          beanType,
-          roastType,
-          openDate,
-          notes,
-          photoDataUrl: nextMedia.photoDataUrl || "",
-          photoUrl: nextMedia.photoUrl || "",
-          photoStoragePath: nextMedia.photoStoragePath || ""
-        },
-        ...beans
-      ];
-    };
-
-    let nextBeans = null;
+    let photoCandidates = [];
     if (file) {
       try {
-        const photoCandidates = await toOptimizedPhotoDataUrls(file);
-        let cloudMedia = null;
-        if (photoCandidates[0]) {
-          try {
-            const uploadResult = await uploadBeanPhotoToCloud(targetBeanId, photoCandidates[0]);
-            if (!uploadResult.skipped) {
-              cloudMedia = uploadResult;
-            }
-          } catch (error) {
-            console.warn("Bean photo cloud upload failed, falling back to local save.", error);
-          }
-        }
-        if (cloudMedia) {
-          nextBeans = buildNextBeans(cloudMedia);
-          if (!trySaveBeans(nextBeans)) {
-            setOcrStatus("图片已上传云端，但本地保存没有完成。请重新保存一次。", "is-warning");
-            return;
-          }
-        } else {
-          for (const candidate of photoCandidates) {
-            const attemptedBeans = buildNextBeans({ photoDataUrl: candidate, photoUrl: "", photoStoragePath: "" });
-            if (!trySaveBeans(attemptedBeans, { silent: true })) continue;
-            nextBeans = attemptedBeans;
-            break;
-          }
-        }
+        photoCandidates = await toOptimizedPhotoDataUrls(file);
       } catch {
         window.alert("图片读取失败，请重新选择图片。");
         return;
       }
-      if (!nextBeans) {
-        window.alert("保存失败：已自动尝试压缩图片，但当前浏览器可用空间还是不够。这次不会清空你表单里的豆子描述，请换一张更小的图片后重试。");
-        setOcrStatus("图片太大，这次没有保存成功；你当前填写的豆子描述还保留在表单里。", "is-warning");
-        return;
+    }
+    const baseBean = (() => {
+      if (editingId) {
+        const existing = beans.find(bean => bean.id === editingId);
+        if (existing) {
+          return {
+            ...existing,
+            name,
+            beanType,
+            roastType,
+            openDate,
+            notes
+          };
+        }
       }
-    } else {
-      nextBeans = buildNextBeans({});
-      if (!trySaveBeans(nextBeans)) {
-        setOcrStatus("这次没有保存成功；你当前填写的豆子描述还保留在表单里。", "is-warning");
+      return {
+        id: targetBeanId,
+        name,
+        beanType,
+        roastType,
+        openDate,
+        notes
+      };
+    })();
+
+    setOcrStatus("Saving bean to Firebase…", "is-working");
+    let result = null;
+    let usedPhotoDataUrl = "";
+    const fallbackErrorMessages = [];
+    const candidates = photoCandidates.length ? photoCandidates : [""];
+    for (const photoDataUrl of candidates) {
+      try {
+        result = await saveBeanCloudFirst(baseBean, {
+          photoDataUrl,
+          existingItems: beans,
+          allowLocalPhotoDataUrl: false
+        });
+        usedPhotoDataUrl = photoDataUrl;
+        break;
+      } catch (error) {
+        fallbackErrorMessages.push(error instanceof Error ? error.message : "Bean cloud save failed.");
+      }
+    }
+
+    if (!result) {
+      if (photoCandidates.length) {
+        try {
+          const smallestPhoto = photoCandidates[photoCandidates.length - 1];
+          result = await saveBeanCloudFirst(baseBean, {
+            photoDataUrl: smallestPhoto,
+            existingItems: beans,
+            allowLocalPhotoDataUrl: true
+          });
+          usedPhotoDataUrl = smallestPhoto;
+        } catch (_finalError) {
+          result = null;
+        }
+      }
+      if (!result) {
+        const lastMessage = fallbackErrorMessages[fallbackErrorMessages.length - 1] || "保存失败。";
+        setOcrStatus(`${lastMessage} 这次没有保存成功，你填写的豆子描述仍保留在表单里。`, "is-error");
+        window.alert(`保存失败：${lastMessage}。豆子描述不会被清空，请重试；如果是网络或 Firebase 权限问题，先在 Settings 里修复。`);
         return;
       }
     }
 
+    const nextBeans = result.items;
     editingId = null;
     form.reset();
     if (photoInput) {
@@ -446,15 +443,20 @@ export function bindBeansUi() {
     if (ocrInput) {
       ocrInput.value = "";
     }
-    setOcrStatus("");
+    if (result.mode === "cloud-first") {
+      setOcrStatus("Saved to Firebase. Photos are kept in Storage, not in this device storage.", "is-success");
+    } else if (result.mode === "local-fallback") {
+      setOcrStatus(
+        usedPhotoDataUrl
+          ? `Cloud save failed (${result.error || "unknown"}), so this bean was saved locally first. Connect Firebase permissions to move the photo to cloud storage.`
+          : `Cloud save failed (${result.error || "unknown"}), so this bean was saved locally first.`,
+        "is-warning"
+      );
+    } else {
+      setOcrStatus("Saved locally. Enable Firebase in Settings to back this up.", "is-warning");
+    }
     renderBeans(list, nextBeans);
     document.dispatchEvent(new CustomEvent("beans-updated", { detail: { beans: nextBeans } }));
-    const savedBean = nextBeans.find(bean => bean.id === targetBeanId);
-    if (savedBean) {
-      syncBeanToCloud(savedBean).catch(error => {
-        console.error("Bean cloud backup failed", error);
-      });
-    }
   });
 
   clearBtn.addEventListener("click", () => {
